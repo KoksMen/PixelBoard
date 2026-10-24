@@ -82,6 +82,7 @@ import android.widget.TextView;
 import android.widget.VideoView;
 import com.akshaykadam.pixelboard.extension.advancedvoice.GboardAdvancedVoiceSettings;
 import com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings;
+import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarSettings;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -2987,6 +2988,7 @@ public final class GboardPatchesSettingsActivity extends Activity
         }
         if (patchesPrefs != null) {
             GboardRoundedKeysSettings.ensureDefaults(context, patchesPrefs);
+            GboardSpacebarSettings.ensureDefaults(context, patchesPrefs);
         }
 
         boolean aiWritingToolsEnabled = writingPrefs == null
@@ -2997,6 +2999,8 @@ public final class GboardPatchesSettingsActivity extends Activity
                 || GboardAdvancedVoiceSettings.readEnabled(voicePrefs);
         boolean roundedKeysEnabled = patchesPrefs == null
                 || GboardRoundedKeysSettings.readEnabled(patchesPrefs);
+        boolean swipeSpaceSwitchEnabled = patchesPrefs == null
+                || GboardSpacebarSettings.readEnabled(patchesPrefs);
 
         List<GboardPatchesSettingsContract.Row> rows =
                 new ArrayList<GboardPatchesSettingsContract.Row>();
@@ -3044,6 +3048,18 @@ public final class GboardPatchesSettingsActivity extends Activity
                     if (patchesPrefs != null) {
                         GboardRoundedKeysSettings.writeEnabled(patchesPrefs, value);
                         GboardRoundedKeysSettings.applyToGboardPreferences(context, value);
+                        renderCurrentScreenSafely();
+                    }
+                }));
+
+        rows.add(new GboardPatchesSettingsContract.ToggleRow(
+                GboardSettingsText.get(context, R.string.gboard_patches_swipe_space_switch_language_title),
+                GboardSettingsText.get(context, R.string.gboard_patches_swipe_space_switch_language_summary),
+                true,
+                swipeSpaceSwitchEnabled,
+                value -> {
+                    if (patchesPrefs != null) {
+                        GboardSpacebarSettings.writeEnabled(patchesPrefs, value);
                         renderCurrentScreenSafely();
                     }
                 }));

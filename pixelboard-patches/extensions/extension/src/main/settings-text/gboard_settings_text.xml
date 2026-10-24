@@ -849,4 +849,46 @@
         <translation locale="th">เปิดใช้รูปแบบปุ่มโค้งมน Material 3 Expressive (Belka)</translation>
         <translation locale="uk">Увімкнути закруглений стиль клавіш Material 3 Expressive (Belka).</translation>
     </string>
+    <string name="gboard_patches_swipe_space_switch_language_title">
+        <translation locale="en">Swipe spacebar to switch language</translation>
+        <translation locale="es">Deslizar la barra espaciadora para cambiar de idioma</translation>
+        <translation locale="fr">Glisser sur la barre d'espace pour changer de langue</translation>
+        <translation locale="de">Wischen über die Leertaste zum Sprachwechsel</translation>
+        <translation locale="it">Scorri sulla barra spaziatrice per cambiare lingua</translation>
+        <translation locale="pt">Deslizar a barra de espaço para alternar o idioma</translation>
+        <translation locale="ru">Переключение языка свайпом по пробелу</translation>
+        <translation locale="hi">भाषा बदलने के लिए स्पेसबार पर स्वाइप करें</translation>
+        <translation locale="ja">スペースバーをスワイプして言語を切り替える</translation>
+        <translation locale="ko">스페이스바를 밀어서 언어 전환</translation>
+        <translation locale="zh">滑动空格键切换语言</translation>
+        <translation locale="ar">مرر على شريط المسافة لتبديل اللغة</translation>
+        <translation locale="in">Geser bilah spasi untuk beralih bahasa</translation>
+        <translation locale="tr">Dili değiştirmek için boşluk çubuğunu kaydırın</translation>
+        <translation locale="vi">Vuốt phím cách để chuyển đổi ngôn ngữ</translation>
+        <translation locale="pl">Przesuń spację, aby zmienić język</translation>
+        <translation locale="nl">Veeg over de spatiebalk om van taal te wisselen</translation>
+        <translation locale="th">เลื่อนสเปซบาร์เพื่อสลับภาษา</translation>
+        <translation locale="uk">Свайп по пробілу для перемикання мови</translation>
+    </string>
+    <string name="gboard_patches_swipe_space_switch_language_summary">
+        <translation locale="en">Swipe left or right across the spacebar to switch input languages.</translation>
+        <translation locale="es">Deslice hacia la izquierda o derecha sobre la barra espaciadora para cambiar de idioma.</translation>
+        <translation locale="fr">Glissez vers la gauche ou la droite sur la barre d'espace pour changer de langue de saisie.</translation>
+        <translation locale="de">Wischen Sie auf der Leertaste nach links oder rechts, um die Eingabesprache zu wechseln.</translation>
+        <translation locale="it">Scorri verso sinistra o destra sulla barra spaziatrice per cambiare la lingua di immissione.</translation>
+        <translation locale="pt">Deslize para a esquerda ou direita na barra de espaço para alternar entre os idiomas de entrada.</translation>
+        <translation locale="ru">Проведите пальцем влево или вправо по пробелу для быстрого переключения языка ввода.</translation>
+        <translation locale="hi">इनपुट भाषाओं के बीच स्विच करने के लिए स्पेसबार पर बाएं या दाएं स्वाइप करें।</translation>
+        <translation locale="ja">スペースバーを左右にスワイプして入力言語を切り替えます。</translation>
+        <translation locale="ko">스페이스바를 왼쪽이나 오른쪽으로 밀어 입력 언어를 전환합니다.</translation>
+        <translation locale="zh">在空格键上向左或向右滑动以切换输入语言。</translation>
+        <translation locale="ar">مرر لليسار أو اليمين على شريط المسافة لتبديل لغة الإدخال.</translation>
+        <translation locale="in">Geser ke kiri atau kanan pada bilah spasi untuk beralih bahasa masukan.</translation>
+        <translation locale="tr">Giriş dillerini değiştirmek için boşluk çubuğunda sola veya sağa kaydırın.</translation>
+        <translation locale="vi">Vuốt sang trái hoặc phải trên phím cách để chuyển đổi ngôn ngữ nhập.</translation>
+        <translation locale="pl">Przesuń palcem w lewo lub w prawo po spacji, aby zmienić język wprowadzania.</translation>
+        <translation locale="nl">Veeg naar links of rechts over de spatiebalk om van invoertaal te wisselen.</translation>
+        <translation locale="th">เลื่อนซ้ายหรือขวาบนสเปซบาร์เพื่อสลับภาษาในการป้อนข้อมูล</translation>
+        <translation locale="uk">Проведіть пальцем вліво або вправо по пробілу для швидкого перемикання мови введення.</translation>
+    </string>
 </settings-text>

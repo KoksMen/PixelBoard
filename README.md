@@ -98,6 +98,12 @@ Access Google's Gemini-driven writing suite directly above your keys across any 
 - **Scan Text / OCR (Camera Viewfinder)**: Unlocks the dedicated "Scan text" camera tool in the toolbar (`enable_ocr`, `config_ocr`, `ocr_password_allowlist`, `enabled_ocr_language_tags = *`). Enforces `android.permission.CAMERA` in `AndroidManifest.xml` and opens a CameraX text-recognition viewfinder to capture and extract physical text directly at the cursor.
 - **Screenshot & Clipboard Image Floating Banner**: Forces `enable_clipboard_image_suggestion`, `enable_screenshot_notification_flow`, `enable_screenshot_chip`, `enable_clipboard_recent_screenshot`, and `clipboard_screenshot_enabled_at_least_once`. Enforces `READ_MEDIA_IMAGES` and `READ_EXTERNAL_STORAGE` permissions. When enabled under **PixelBoard Settings > Clipboard**, screenshots appear instantly as a floating suggestion chip for 1-tap pasting.
 
+### 5. Spacebar Swipe Language Switching (Samsung-Style Ergonomics)
+- **Fluid Horizontal Language Switching**: Swipe left or right across the spacebar (`key_pos_space`) to switch instantly between active input languages and layouts.
+- **Intelligent Gesture Filter**: Precision-tuned threshold (35dp) discriminates intentional horizontal swipes from fast typing taps and vertical trackpad drifts, preventing accidental language changes.
+- **Instant Tactile & Visual Feedback**: Provides tactile haptic feedback and displays the newly selected language name (`Toast` HUD) upon switching.
+- **Advanced Settings Preference**: Can be toggled on/off in real-time under **PixelBoard Settings > Features** (`pref_key_swipe_space_switch_language`).
+
 ### 5. Material 3 Expressive Rounded Keys (Belka UI) ([#14](https://github.com/Akshayykadam/PixelBoard/issues/14))
 - **Modern Rounded Keycaps**: Toggle Google's expressive Material 3 Belka pill-shaped keycaps on/off under Advanced Settings.
 - **Dynamic Flag Management**: Automatically forces `belka_rounded_keyboard`, `belka_ui`, `belka_background`, `more_pill_keys`, and `enable_rounded_keys` flags at runtime.

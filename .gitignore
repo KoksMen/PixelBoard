@@ -24,3 +24,13 @@ input/splits*/
 
 # Scratch directory
 scratch/
+
+# Decompilation & rebuild artifacts
+_*
+tools/apktool.jar
+tools/baksmali.jar
+tools/smali.jar
+tools/jdk-21*
+tools/clean_PixelBoard.apk
+tools/pixelboard.keystore
+output/*.apk

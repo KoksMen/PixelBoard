@@ -18,6 +18,7 @@ import com.akshaykadam.pixelboard.patches.gboard.features.emoji.gboardCandidateE
 import com.akshaykadam.pixelboard.patches.gboard.features.clipboard.gboardClipboardSyncPatch
 import com.akshaykadam.pixelboard.patches.gboard.features.spellchecker.gboardSpellCheckerChipsPatch
 import com.akshaykadam.pixelboard.patches.gboard.features.accessibility.gboardFeaturesMenuAccessibilityPatch
+import com.akshaykadam.pixelboard.patches.gboard.features.spacebar.gboardSpacebarSwipePatch
 
 internal val gboardPatchesSettingsPatch = resourcePatch(
     description = "Add Patches entry to the bottom of Gboard settings."
@@ -30,6 +31,7 @@ internal val gboardPatchesSettingsPatch = resourcePatch(
         gboardClipboardSyncPatch,
         gboardSpellCheckerChipsPatch,
         gboardFeaturesMenuAccessibilityPatch,
+        gboardSpacebarSwipePatch,
     )
 
     finalize {

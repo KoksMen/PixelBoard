@@ -7,6 +7,13 @@ PixelBoard v18.4.1-V7 (Patch Bundle v1.2.0) introduces Features Menu accessibili
 
 ## What's New in This Release (v18.4.1-V7 / Patch v1.2.0)
 
+### 1. Spacebar Swipe Language Switching (Samsung-Style Ergonomics)
+- **Fluid Horizontal Language Switching**: Slide finger left or right across the spacebar (`key_pos_space`) to switch instantly between active input languages and layouts.
+- **Directional Cycling**: Swiping right switches forward to the next language/subtype; swiping left switches backward to the previous language/subtype.
+- **Precision Gesture Tuning**: Integrated ratio filter and 35dp motion threshold discriminate horizontal swipes from fast typing taps and vertical trackpad drifts.
+- **Tactile Feedback & Language HUD**: Provides haptic vibration and a momentary visual indicator of the new active language.
+- **Toggleable in Settings**: Fully toggleable under **PixelBoard Settings > Features** (`pref_key_swipe_space_switch_language`), localized in 20+ languages.
+
 ### 1. Features Menu Accessibility & TalkBack Navigation ([#48](https://github.com/Akshayykadam/PixelBoard/issues/48))
 - **Screen Reader Announcements**: Resolved an issue where opening the features menu / "More options" (`AccessPointsPanel`, `AccessPointsPanelV2`, `AccessPointsPanelViewPage`) failed to notify TalkBack and accessibility services of window state changes.
 - **Automated Focus Traversal**: Sets accessibility pane title (`resolvePaneTitle`), dispatches `AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED`, and automatically shifts focus to the first accessible tool or keycap (`SoftKeyView` / button).

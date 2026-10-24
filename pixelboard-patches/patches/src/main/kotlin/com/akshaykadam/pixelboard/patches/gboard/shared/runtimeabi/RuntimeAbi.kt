@@ -25,6 +25,8 @@ internal enum class RuntimeCallId(internal val encodedAbi: String) {
     CLIPBOARD_SYNC_RUNTIME_SYNC_ON_START_INPUT_VIEW("Lcom/akshaykadam/pixelboard/extension/clipboard/GboardClipboardSyncRuntime;->syncOnStartInputView(Ljava/lang/Object;)V"),
     FEATURES_MENU_ACCESSIBILITY_ON_INFLATE("Lcom/akshaykadam/pixelboard/extension/accessibility/GboardFeaturesMenuAccessibilityRuntime;->onAccessPointsPanelInflated(Landroid/view/View;)V"),
     FEATURES_MENU_ACCESSIBILITY_ON_VISIBILITY_CHANGED("Lcom/akshaykadam/pixelboard/extension/accessibility/GboardFeaturesMenuAccessibilityRuntime;->onAccessPointsPanelVisibilityChanged(Landroid/view/View;)V"),
+    SPACEBAR_SWIPE_RUNTIME_HANDLE_TOUCH_EVENT("Lcom/akshaykadam/pixelboard/extension/spacebar/GboardSpacebarSwipeRuntime;->handleTouchEvent(Landroid/view/View;Landroid/view/MotionEvent;)Z"),
+    SPACEBAR_SWIPE_RUNTIME_ON_ATTACHED("Lcom/akshaykadam/pixelboard/extension/spacebar/GboardSpacebarSwipeRuntime;->onSoftKeyViewAttached(Landroid/view/View;)V"),
 }
 
 internal data class RuntimeAbi(
