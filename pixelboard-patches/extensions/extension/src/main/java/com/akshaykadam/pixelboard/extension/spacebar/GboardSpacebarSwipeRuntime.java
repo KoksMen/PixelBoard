@@ -157,48 +157,38 @@ public final class GboardSpacebarSwipeRuntime {
      * Checks whether the touch event falls within the spacebar view bounds.
      */
     private static boolean isEventInsideSpacebar(View keyboardView, View spacebar, MotionEvent event) {
-        if (spacebar != null && spacebar.getVisibility() == View.VISIBLE) {
-            // 1. Relative bounds check within keyboardView
-            try {
-                Rect r = new Rect();
-                spacebar.getDrawingRect(r);
-                if (keyboardView instanceof ViewGroup) {
-                    ((ViewGroup) keyboardView).offsetDescendantRectToMyCoords(spacebar, r);
-                    int x = (int) event.getX();
-                    int y = (int) event.getY();
-                    if (r.contains(x, y)) {
-                        return true;
-                    }
-                }
-            } catch (Throwable ignored) {
-            }
-
-            // 2. Global screen coordinates check
-            try {
-                int[] loc = new int[2];
-                spacebar.getLocationOnScreen(loc);
-                float rx = event.getRawX();
-                float ry = event.getRawY();
-                if (rx >= loc[0] && rx <= (loc[0] + spacebar.getWidth())
-                        && ry >= loc[1] && ry <= (loc[1] + spacebar.getHeight())) {
-                    return true;
-                }
-            } catch (Throwable ignored) {
-            }
+        if (spacebar == null || spacebar.getVisibility() != View.VISIBLE) {
+            return false;
         }
 
-        // 3. Robust fallback: Spacebar is always in bottom row, centered horizontally
-        if (keyboardView != null) {
-            int h = keyboardView.getHeight();
-            int w = keyboardView.getWidth();
-            if (h > 0 && w > 0) {
-                float y = event.getY();
-                float x = event.getX();
-                if (y >= h * 0.65f && x >= w * 0.18f && x <= w * 0.82f) {
+        // 1. Relative bounds check within keyboardView
+        try {
+            Rect r = new Rect();
+            spacebar.getDrawingRect(r);
+            if (keyboardView instanceof ViewGroup) {
+                ((ViewGroup) keyboardView).offsetDescendantRectToMyCoords(spacebar, r);
+                int x = (int) event.getX();
+                int y = (int) event.getY();
+                if (r.contains(x, y)) {
                     return true;
                 }
             }
+        } catch (Throwable ignored) {
         }
+
+        // 2. Global screen coordinates check
+        try {
+            int[] loc = new int[2];
+            spacebar.getLocationOnScreen(loc);
+            float rx = event.getRawX();
+            float ry = event.getRawY();
+            if (rx >= loc[0] && rx <= (loc[0] + spacebar.getWidth())
+                    && ry >= loc[1] && ry <= (loc[1] + spacebar.getHeight())) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+
         return false;
     }
 
@@ -222,7 +212,17 @@ public final class GboardSpacebarSwipeRuntime {
             int action = event.getActionMasked();
             switch (action) {
                 case MotionEvent.ACTION_DOWN: {
+                    // Attach proofread trigger button if enabled
+                    com.akshaykadam.pixelboard.extension.proofread.GboardProofreadButton.attach(keyboardView);
+
                     View spacebar = findSpacebarView(keyboardView);
+                    if (spacebar == null) {
+                        // This view does not contain a spacebar (e.g. candidates/suggestions bar)
+                        isTracking = false;
+                        swipeTriggered = false;
+                        return false;
+                    }
+
                     boolean onSpace = isEventInsideSpacebar(keyboardView, spacebar, event);
                     if (onSpace) {
                         startX = event.getX();
@@ -261,6 +261,17 @@ public final class GboardSpacebarSwipeRuntime {
                     float absDy = Math.abs(dy);
                     float thresholdPx = dpToPx(context, SWIPE_THRESHOLD_DP);
 
+                    // 1. Check for vertical swipe UP: triggers proofreading & correction!
+                    if (dy <= -thresholdPx && absDy > SWIPE_DIRECTION_RATIO * absDx) {
+                        swipeTriggered = true;
+                        Log.i(TAG, "SWIPE UP TRIGGERED: proofread requested dy=" + dy + " elapsed=" + elapsed);
+                        performHapticFeedback(keyboardView);
+                        sendCancelToKeyboardView(keyboardView, event);
+                        com.akshaykadam.pixelboard.extension.proofread.GboardProofreadService.checkAndShowDiff(keyboardView);
+                        return true;
+                    }
+
+                    // 2. Check for horizontal swipe: switches language!
                     if (absDx >= thresholdPx && absDx > SWIPE_DIRECTION_RATIO * absDy) {
                         swipeTriggered = true;
                         boolean forward = dx > 0;
