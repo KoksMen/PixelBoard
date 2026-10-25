@@ -22,6 +22,8 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -49,7 +51,8 @@ public final class GboardProofreadButton {
     private static WeakReference<ViewGroup> sCurrentBarRef = null;
     private static WeakReference<View> sProofreadButtonRef = null;
     private static WeakReference<View> sAutofillButtonRef = null;
-    private static WeakReference<ViewGroup> sAttachedParentRef = null;
+    public static WeakReference<ViewGroup> sAttachedParentRef = null;
+    public static ViewGroup getAttachedParent() { return sAttachedParentRef != null ? sAttachedParentRef.get() : null; }
 
     private GboardProofreadButton() {
     }
@@ -173,10 +176,9 @@ public final class GboardProofreadButton {
         if (keyboardView == null) return;
         Context context = keyboardView.getContext();
 
-        boolean proofreadEnabled = GboardProofreadSettings.isEnabled(context);
         boolean autofillEnabled = GboardAutofillSettings.isEnabled(context);
 
-        if (!proofreadEnabled && !autofillEnabled) {
+        if (!autofillEnabled) {
             detach();
             return;
         }
@@ -200,7 +202,7 @@ public final class GboardProofreadButton {
                 }
 
                 boolean positionLeft = GboardProofreadSettings.isPositionLeft(context);
-                LinearLayout bar = createBar(context, keyboardView, proofreadEnabled, autofillEnabled);
+                LinearLayout bar = createBar(context, keyboardView, host, autofillEnabled);
                 if (bar == null) return;
 
                 String pkg = context.getPackageName();
@@ -214,10 +216,18 @@ public final class GboardProofreadButton {
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.gravity = Gravity.CENTER_VERTICAL;
 
-                int numButtons = (autofillEnabled ? 1 : 0) + (proofreadEnabled ? 1 : 0);
-                int barWidth = numButtons * dp(context, 38) + (numButtons > 1 ? dp(context, 4) : 0);
+                int barWidth = dp(context, 44);
+                float savedRatio = GboardProofreadSettings.isAutofillPositionRatio(context);
 
-                if (positionLeft) {
+                if (savedRatio >= 0.0f && host.getWidth() > 0) {
+                    params.gravity |= Gravity.START;
+                    int maxLeft = host.getWidth() - barWidth;
+                    int left = (int) (savedRatio * host.getWidth());
+                    if (left < 0) left = 0;
+                    if (left > maxLeft) left = maxLeft;
+                    params.leftMargin = left;
+                    params.rightMargin = 0;
+                } else if (positionLeft) {
                     params.gravity |= Gravity.START;
                     int leftOffset = (menuView != null && menuView.getWidth() > 0)
                             ? (menuView.getRight() + dp(context, 4))
@@ -280,6 +290,19 @@ public final class GboardProofreadButton {
         try {
             String pkg = context.getPackageName();
 
+            // 0. If top bar customization/edit page is open, hide overlay bar
+            View r = host.getRootView();
+            if (r != null) {
+                if (findViewByClassNameRecursive(r, "EditPage") != null
+                        || findViewByClassNameRecursive(r, "EditMode") != null
+                        || findViewByClassNameRecursive(r, "AccessPointsPanel") != null) {
+                    if (bar.getVisibility() != View.GONE) {
+                        bar.setVisibility(View.GONE);
+                    }
+                    return;
+                }
+            }
+
             // 1. If any "back to prime" button is present and visible, a subview is open
             int[] subviewBackIds = new int[]{
                     host.getResources().getIdentifier("key_pos_jarvis_back_to_prime", "id", pkg),
@@ -325,6 +348,21 @@ public final class GboardProofreadButton {
     /**
      * Finds the Gboard header view holder or the header SoftKeyboardView.
      */
+    private static View findViewByClassNameRecursive(View v, String nameSubstring) {
+        if (v == null) return null;
+        if (v.getClass().getSimpleName().contains(nameSubstring) && v.getVisibility() == View.VISIBLE) {
+            return v;
+        }
+        if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View res = findViewByClassNameRecursive(vg.getChildAt(i), nameSubstring);
+                if (res != null) return res;
+            }
+        }
+        return null;
+    }
+
     private static ViewGroup findBestKeyboardHost(View view) {
         if (view == null) return null;
         try {
@@ -436,7 +474,10 @@ public final class GboardProofreadButton {
     }
 
     private static LinearLayout createBar(
-            Context context, View keyboardView, boolean proofreadEnabled, boolean autofillEnabled) {
+            Context context, View keyboardView, ViewGroup host, boolean autofillEnabled) {
+        if (!autofillEnabled) {
+            return null;
+        }
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
@@ -449,76 +490,32 @@ public final class GboardProofreadButton {
         // Native Gboard icon colors: light gray on dark theme, dark gray on light theme
         int iconColor = isDark ? Color.parseColor("#E2E2E9") : Color.parseColor("#44474E");
 
-        // Subtle circular touch target background
-        int touchBgColor = isDark ? Color.parseColor("#1FFFFFFF") : Color.parseColor("#14000000");
+        View autofillBtn = createToolbarIconButton(context, keyboardView, host, bar, new KeyIconView(context), iconColor);
+        sAutofillButtonRef = new WeakReference<>(autofillBtn);
+        sProofreadButtonRef = null;
 
-        boolean sparkleFirst = GboardProofreadSettings.isOrderSparkleFirst(context);
-
-        View firstBtn = null;
-        View secondBtn = null;
-
-        View autofillBtn = null;
-        if (autofillEnabled) {
-            autofillBtn = createToolbarIconButton(context, keyboardView, new KeyIconView(context), iconColor, touchBgColor, true);
-            sAutofillButtonRef = new WeakReference<>(autofillBtn);
-        }
-
-        View proofreadBtn = null;
-        if (proofreadEnabled) {
-            boolean alwaysVisible = GboardProofreadSettings.isAlwaysVisible(context);
-            proofreadBtn = createToolbarIconButton(context, keyboardView, new SparkleIconView(context), iconColor, touchBgColor, false);
-            if (!alwaysVisible) {
-                proofreadBtn.setVisibility(View.GONE);
-            }
-            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
-        }
-
-        if (sparkleFirst) {
-            firstBtn = proofreadBtn;
-            secondBtn = autofillBtn;
-        } else {
-            firstBtn = autofillBtn;
-            secondBtn = proofreadBtn;
-        }
-
-        if (firstBtn != null) {
-            bar.addView(firstBtn);
-        }
-        if (secondBtn != null) {
-            if (firstBtn != null) {
-                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) secondBtn.getLayoutParams();
-                if (lp != null) {
-                    lp.leftMargin = dp(context, 4);
-                }
-            }
-            bar.addView(secondBtn);
-        }
-
+        bar.addView(autofillBtn);
         return bar;
     }
 
     /**
-     * Creates a native Gboard-style circular icon button (matching 4-squares and microphone buttons).
+     * Creates a native Gboard-style transparent toolbar icon button that supports
+     * borderless ripple, in-place autofill, Bitwarden launch on long press,
+     * and horizontal drag-and-drop to position anywhere on the top bar.
      */
     private static View createToolbarIconButton(
-            Context context, View keyboardView, View iconView, int iconColor, int touchBgColor, boolean isAutofill) {
+            Context context, View keyboardView, ViewGroup host, LinearLayout bar, View iconView, int iconColor) {
         FrameLayout buttonFrame = new FrameLayout(context);
         buttonFrame.setClickable(true);
         buttonFrame.setFocusable(true);
         buttonFrame.setTag(CUSTOM_BUTTON_TAG);
 
-        int buttonSize = dp(context, 38);
+        int buttonSize = dp(context, 44);
         LinearLayout.LayoutParams frameParams = new LinearLayout.LayoutParams(buttonSize, buttonSize);
         frameParams.gravity = Gravity.CENTER_VERTICAL;
         buttonFrame.setLayoutParams(frameParams);
 
-        // Circular background with subtle tint and borderless ripple
-        GradientDrawable normalBg = new GradientDrawable();
-        normalBg.setShape(GradientDrawable.OVAL);
-        normalBg.setColor(touchBgColor);
-        buttonFrame.setBackground(normalBg);
-
-        // Set selectable borderless ripple if available
+        // Native Gboard style: NO solid circle background! Completely transparent with borderless ripple on touch
         try {
             TypedValue outValue = new TypedValue();
             if (context.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true)) {
@@ -535,23 +532,77 @@ public final class GboardProofreadButton {
 
         if (iconView instanceof KeyIconView) {
             ((KeyIconView) iconView).setColor(iconColor);
-        } else if (iconView instanceof SparkleIconView) {
-            ((SparkleIconView) iconView).setColor(iconColor);
         }
         buttonFrame.addView(iconView);
+
+        // Support dragging to move position on the toolbar
+        final int touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        buttonFrame.setOnTouchListener(new View.OnTouchListener() {
+            private float downRawX = 0f;
+            private float initialMarginLeft = 0f;
+            private boolean isDragging = false;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downRawX = event.getRawX();
+                        if (bar.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+                            initialMarginLeft = lp.leftMargin;
+                        }
+                        isDragging = false;
+                        return false;
+
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - downRawX;
+                        if (!isDragging && Math.abs(dx) > touchSlop) {
+                            isDragging = true;
+                            if (v.getParent() != null) {
+                                v.getParent().requestDisallowInterceptTouchEvent(true);
+                            }
+                        }
+                        if (isDragging) {
+                            if (host != null && host.getWidth() > 0 && bar.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                                int newLeft = (int) (initialMarginLeft + dx);
+                                int maxLeft = host.getWidth() - bar.getWidth();
+                                if (newLeft < 0) newLeft = 0;
+                                if (newLeft > maxLeft) newLeft = maxLeft;
+                                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+                                lp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+                                lp.leftMargin = newLeft;
+                                lp.rightMargin = 0;
+                                bar.setLayoutParams(lp);
+                            }
+                            return true;
+                        }
+                        break;
+
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (isDragging) {
+                            if (host != null && host.getWidth() > 0 && bar.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+                                float ratio = (float) lp.leftMargin / (float) host.getWidth();
+                                GboardProofreadSettings.writeAutofillPositionRatio(
+                                        GboardProofreadSettings.preferences(context), ratio);
+                            }
+                            isDragging = false;
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        });
 
         buttonFrame.setOnClickListener(v -> {
             try {
                 buttonFrame.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             } catch (Throwable ignored) {
             }
-            if (isAutofill) {
-                // Short click: trigger in-place autofill prompt without minimizing current app
-                GboardAutofillService.requestAutofillOnly(keyboardView);
-            } else {
-                // Short click: launch native Google AI Writing Tools
-                triggerWritingTools(keyboardView);
-            }
+            // Short click: trigger in-place autofill prompt without minimizing current app
+            GboardAutofillService.requestAutofillOnly(keyboardView);
         });
 
         buttonFrame.setOnLongClickListener(v -> {
@@ -560,22 +611,8 @@ public final class GboardProofreadButton {
             } catch (Throwable ignored) {
             }
             Context ctx = v.getContext();
-            if (isAutofill) {
-                // Long press on Key button: open Bitwarden password manager app!
-                return GboardAutofillService.launchPasswordManagerApp(ctx);
-            } else {
-                // Long press on Sparkle button: open PixelBoard settings!
-                try {
-                    Intent intent = new Intent();
-                    intent.setClassName(ctx.getPackageName(), "com.akshaykadam.pixelboard.extension.settings.GboardPatchesSettingsActivity");
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    ctx.startActivity(intent);
-                    return true;
-                } catch (Throwable t) {
-                    Log.w(TAG, "Failed to launch settings from button long click", t);
-                    return false;
-                }
-            }
+            // Long press on Key button: open Bitwarden password manager app!
+            return GboardAutofillService.launchPasswordManagerApp(ctx);
         });
 
         return buttonFrame;

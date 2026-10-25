@@ -139,6 +139,65 @@ public final class GboardProofreadService {
     private GboardProofreadService() {
     }
 
+    public static volatile boolean sBypassJarvisIntercept = false;
+
+    /**
+     * Intercepts native Gboard Jarvis (Writing Tools) button clicks to provide
+     * top-quality Russian grammar, syntax heuristics, and spell-checking.
+     */
+    public static boolean onJarvisClicked(Object caller) {
+        if (sBypassJarvisIntercept) {
+            return false;
+        }
+        try {
+            View targetView = GboardProofreadButton.getAttachedParent();
+            if (targetView == null && caller != null) {
+                try {
+                    Object obr = caller.getClass().getMethod("ah").invoke(caller);
+                    if (obr != null) {
+                        Object view = obr.getClass().getMethod("l").invoke(obr);
+                        if (view instanceof View) {
+                            targetView = (View) view;
+                        }
+                        if (targetView == null) {
+                            view = obr.getClass().getMethod("k").invoke(obr);
+                            if (view instanceof View) {
+                                targetView = (View) view;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
+            if (targetView == null) {
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null && ims.getWindow() != null) {
+                    View decor = ims.getWindow().getWindow() != null
+                            ? ims.getWindow().getWindow().getDecorView()
+                            : null;
+                    if (decor != null) {
+                        targetView = decor;
+                    }
+                }
+            }
+
+            if (targetView != null) {
+                Context context = targetView.getContext();
+                if (GboardProofreadSettings.isEnabled(context)) {
+                    final View finalView = targetView;
+                    getMainHandler().post(() -> checkAndShowDiff(finalView));
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            logw(TAG, "Failed in onJarvisClicked", t);
+        }
+        return false;
+    }
+
+
+
     /**
      * Checks text around cursor or selected text, and displays the Git-style Diff card.
      */

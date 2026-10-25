@@ -1163,3 +1163,58 @@ if clean_lime in lime_norm:
     print("LatinIME hook already in clean state")
 else:
     print("Warning: LatinIME hook not matched")
+
+
+# 5. Hook hom.smali to intercept native Jarvis button clicks
+hom_path = "_decompiled/smali_classes2/hom.smali"
+if os.path.exists(hom_path):
+    with open(hom_path, "r", encoding="utf-8") as f:
+        hom_content = f.read()
+
+    hom_norm = hom_content.replace("\r\n", "\n")
+
+    target_hom = """.method public final s()V
+    .locals 2
+
+    .line 1
+    iget-object v0, p0, Lhom;->f:Lpvl;
+
+    .line 2
+    .line 3
+    sget-object v1, Lhph;->a:Lpvl;
+
+    .line 4
+    .line 5
+    if-ne v0, v1, :cond_0"""
+
+    replacement_hom = """.method public final s()V
+    .locals 2
+
+    .line 1
+    iget-object v0, p0, Lhom;->f:Lpvl;
+
+    .line 2
+    .line 3
+    sget-object v1, Lhph;->a:Lpvl;
+
+    .line 4
+    .line 5
+    if-ne v0, v1, :cond_0
+
+    invoke-static {p0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onJarvisClicked(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_pixelboard_fallback
+
+    return-void
+
+    :cond_pixelboard_fallback"""
+
+    if "GboardProofreadService;->onJarvisClicked" not in hom_norm and target_hom in hom_norm:
+        hom_norm = hom_norm.replace(target_hom, replacement_hom, 1)
+        with open(hom_path, "w", encoding="utf-8") as f:
+            f.write(hom_norm)
+        print("Hooked Jarvis click in hom.smali")
+    else:
+        print("Jarvis hook in hom.smali already present or not matched")

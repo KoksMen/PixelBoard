@@ -43,6 +43,9 @@ public final class GboardProofreadSettings {
     public static final String PREF_KEY_HIDE_CLIPBOARD = "pref_key_hide_clipboard";
     public static final boolean DEFAULT_HIDE_CLIPBOARD = false;
 
+    public static final String PREF_KEY_AUTOFILL_POSITION_RATIO = "pref_key_autofill_position_ratio";
+    public static final float DEFAULT_AUTOFILL_POSITION_RATIO = -1.0f;
+
     private static volatile Boolean cachedEnabled;
     private static volatile Boolean cachedAlwaysVisible;
     private static volatile Boolean cachedPositionLeft;
@@ -291,7 +294,27 @@ public final class GboardProofreadSettings {
         }
     }
 
-    public static String filterAccessPointsOrder(Context context, String originalOrder) {
+    public static float readAutofillPositionRatio(SharedPreferences preferences) {
+        if (preferences == null) return DEFAULT_AUTOFILL_POSITION_RATIO;
+        return preferences.getFloat(PREF_KEY_AUTOFILL_POSITION_RATIO, DEFAULT_AUTOFILL_POSITION_RATIO);
+    }
+
+    public static boolean writeAutofillPositionRatio(SharedPreferences preferences, float ratio) {
+        if (preferences == null) return false;
+        preferences.edit().putFloat(PREF_KEY_AUTOFILL_POSITION_RATIO, ratio).apply();
+        return true;
+    }
+
+    public static float isAutofillPositionRatio(Context context) {
+        if (context == null) return DEFAULT_AUTOFILL_POSITION_RATIO;
+        try {
+            return readAutofillPositionRatio(preferences(context));
+        } catch (Throwable ignored) {
+            return DEFAULT_AUTOFILL_POSITION_RATIO;
+        }
+    }
+
+        public static String filterAccessPointsOrder(Context context, String originalOrder) {
         if (originalOrder == null || originalOrder.isEmpty()) {
             return "settings;one_handed;textediting;share;translate;floating_keyboard";
         }

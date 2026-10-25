@@ -237,7 +237,14 @@ public final class GboardProofreadOverlay {
                 googleAiBtn.setBackground(googleAiBg);
                 googleAiBtn.setOnClickListener(v -> {
                     dismiss(card);
-                    GboardProofreadButton.triggerWritingTools(keyboardView);
+                    GboardProofreadService.sBypassJarvisIntercept = true;
+                    try {
+                        GboardProofreadButton.triggerWritingTools(keyboardView);
+                    } finally {
+                        keyboardView.postDelayed(() -> {
+                            GboardProofreadService.sBypassJarvisIntercept = false;
+                        }, 1200);
+                    }
                 });
                 actionsRow.addView(googleAiBtn);
 
