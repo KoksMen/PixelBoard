@@ -1,5 +1,7 @@
 package com.akshaykadam.pixelboard.extension.writingtools;
 
+import com.akshaykadam.pixelboard.extension.proofread.GboardProofreadSettings;
+
 import android.content.Context;
 import android.os.Build;
 import android.util.Log;
@@ -495,6 +497,15 @@ public final class GboardAiWritingToolsRuntime {
             if (FLAG_SMART_COMPOSE_STATUS.equals(flagName)
                     && originalResult instanceof Long) {
                 return 1L;
+            }
+            if ("enable_personalize_top_bar".equals(flagName)
+                    || "enable_access_points_customization_hint".equals(flagName)) {
+                return Boolean.TRUE;
+            }
+            if (("access_points_order".equals(flagName)
+                    || "access_points_order_for_new_user_on_phone".equals(flagName))
+                    && originalResult instanceof String) {
+                return GboardProofreadSettings.filterAccessPointsOrder(context, (String) originalResult);
             }
             if (isStockPhenotypeEnforcedFlag(flagName)
                     && originalResult instanceof Boolean) {

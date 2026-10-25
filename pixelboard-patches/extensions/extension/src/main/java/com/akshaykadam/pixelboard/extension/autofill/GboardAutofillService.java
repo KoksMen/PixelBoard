@@ -121,33 +121,27 @@ public final class GboardAutofillService {
     }
 
     /**
-     * Triggers the Android Autofill framework and launches the active password manager (Bitwarden).
-     *
-     * @param keyboardView the keyboard view
-     * @return true if action was triggered
+     * Sends an in-place autofill request for the currently focused field without minimizing or leaving the current app.
      */
-    public static boolean triggerAutofill(View keyboardView) {
-        if (keyboardView == null) {
-            return false;
-        }
-
+    public static boolean requestAutofillOnly(View keyboardView) {
+        if (keyboardView == null) return false;
         Context context = keyboardView.getContext();
         try {
             keyboardView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         } catch (Throwable ignored) {
         }
 
-        // 1. Dispatch standard Android ContextMenuAction for requesting Autofill on focused view
         InputMethodService ims = GboardSpacebarSwipeRuntime.findInputMethodService(keyboardView);
         if (ims == null) {
             ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
         }
 
+        boolean performed = false;
         if (ims != null) {
             InputConnection ic = ims.getCurrentInputConnection();
             if (ic != null) {
                 try {
-                    boolean performed = ic.performContextMenuAction(AUTOFILL_CONTEXT_MENU_ID);
+                    performed = ic.performContextMenuAction(AUTOFILL_CONTEXT_MENU_ID);
                     logi(TAG, "performContextMenuAction(autofill) result: " + performed);
                 } catch (Throwable t) {
                     logw(TAG, "Exception during performContextMenuAction(autofill)");
@@ -155,59 +149,88 @@ public final class GboardAutofillService {
             }
         }
 
-        // 2. Forcibly launch the active password manager (e.g. Bitwarden) with BAL bypass
-        String autofillPkg = getAutofillServicePackage(context);
-        boolean launched = false;
-        if (autofillPkg != null && !autofillPkg.isEmpty()) {
+        // Also trigger via system AutofillManager if available on API 26+
+        if (Build.VERSION.SDK_INT >= 26) {
             try {
-                Intent launchIntent = resolveLaunchIntent(context, autofillPkg);
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-                    Bundle bundle = null;
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        try {
-                            ActivityOptions options = ActivityOptions.makeBasic();
-                            Method m = ActivityOptions.class.getMethod("setPendingIntentBackgroundActivityStartMode", int.class);
-                            m.invoke(options, 1); // MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                            bundle = options.toBundle();
-                        } catch (Throwable ignored) {
-                        }
+                android.view.autofill.AutofillManager afm =
+                        context.getSystemService(android.view.autofill.AutofillManager.class);
+                if (afm != null && afm.isEnabled()) {
+                    View root = keyboardView.getRootView();
+                    View focused = root != null ? root.findFocus() : null;
+                    if (focused != null) {
+                        afm.requestAutofill(focused);
+                        performed = true;
                     }
-
-                    try {
-                        PendingIntent pi = PendingIntent.getActivity(
-                                context, 1001, launchIntent,
-                                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                        if (bundle != null) {
-                            pi.send(context, 0, null, null, null, null, bundle);
-                        } else {
-                            pi.send();
-                        }
-                        launched = true;
-                    } catch (Throwable t) {
-                        if (bundle != null) {
-                            context.startActivity(launchIntent, bundle);
-                        } else {
-                            context.startActivity(launchIntent);
-                        }
-                        launched = true;
-                    }
-
-                    String appName = autofillPkg.contains("bitwarden") ? "Bitwarden" : "Менеджер паролей";
-                    showToast(context, "Открытие " + appName + " 🔑");
-                    logi(TAG, "Successfully launched password manager: " + autofillPkg);
                 }
-            } catch (Throwable t) {
-                logw(TAG, "Failed to launch password manager: " + autofillPkg);
+            } catch (Throwable ignored) {
             }
         }
 
-        if (!launched) {
-            showToast(context, "Запрос автозаполнения отправлен 🔑");
-        }
+        showToast(context, "Запрос автозаполнения 🔑");
+        return performed;
+    }
 
-        return true;
+    /**
+     * Forcibly launches the active password manager app (e.g. Bitwarden) with BAL bypass.
+     */
+    public static boolean launchPasswordManagerApp(Context context) {
+        if (context == null) return false;
+        try {
+            context.getApplicationContext();
+        } catch (Throwable ignored) {
+        }
+        String autofillPkg = getAutofillServicePackage(context);
+        if (autofillPkg == null || autofillPkg.isEmpty()) {
+            autofillPkg = "com.x8bit.bitwarden";
+        }
+        try {
+            Intent launchIntent = resolveLaunchIntent(context, autofillPkg);
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                Bundle bundle = null;
+                if (Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        ActivityOptions options = ActivityOptions.makeBasic();
+                        Method m = ActivityOptions.class.getMethod("setPendingIntentBackgroundActivityStartMode", int.class);
+                        m.invoke(options, 1); // MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                        bundle = options.toBundle();
+                    } catch (Throwable ignored) {
+                    }
+                }
+
+                try {
+                    PendingIntent pi = PendingIntent.getActivity(
+                            context, 1001, launchIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                    if (bundle != null) {
+                        pi.send(context, 0, null, null, null, null, bundle);
+                    } else {
+                        pi.send();
+                    }
+                } catch (Throwable t) {
+                    if (bundle != null) {
+                        context.startActivity(launchIntent, bundle);
+                    } else {
+                        context.startActivity(launchIntent);
+                    }
+                }
+
+                String appName = autofillPkg.contains("bitwarden") ? "Bitwarden" : "Менеджер паролей";
+                showToast(context, "Открытие " + appName + " 🔑");
+                return true;
+            }
+        } catch (Throwable t) {
+            logw(TAG, "Failed to launch password manager: " + autofillPkg);
+        }
+        return false;
+    }
+
+    /**
+     * Triggers the Android Autofill framework on the current input field.
+     */
+    public static boolean triggerAutofill(View keyboardView) {
+        return requestAutofillOnly(keyboardView);
     }
 
     private static void showToast(Context context, String message) {

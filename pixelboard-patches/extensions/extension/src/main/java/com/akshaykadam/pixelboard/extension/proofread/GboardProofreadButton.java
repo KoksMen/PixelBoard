@@ -546,27 +546,35 @@ public final class GboardProofreadButton {
             } catch (Throwable ignored) {
             }
             if (isAutofill) {
-                GboardAutofillService.triggerAutofill(keyboardView);
+                // Short click: trigger in-place autofill prompt without minimizing current app
+                GboardAutofillService.requestAutofillOnly(keyboardView);
             } else {
+                // Short click: launch native Google AI Writing Tools
                 triggerWritingTools(keyboardView);
             }
         });
 
         buttonFrame.setOnLongClickListener(v -> {
             try {
-                Context ctx = v.getContext();
-                Intent intent = new Intent();
-                intent.setClassName(ctx.getPackageName(), "com.akshaykadam.pixelboard.extension.settings.GboardPatchesSettingsActivity");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                ctx.startActivity(intent);
+                buttonFrame.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            } catch (Throwable ignored) {
+            }
+            Context ctx = v.getContext();
+            if (isAutofill) {
+                // Long press on Key button: open Bitwarden password manager app!
+                return GboardAutofillService.launchPasswordManagerApp(ctx);
+            } else {
+                // Long press on Sparkle button: open PixelBoard settings!
                 try {
-                    buttonFrame.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                } catch (Throwable ignored) {
+                    Intent intent = new Intent();
+                    intent.setClassName(ctx.getPackageName(), "com.akshaykadam.pixelboard.extension.settings.GboardPatchesSettingsActivity");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(intent);
+                    return true;
+                } catch (Throwable t) {
+                    Log.w(TAG, "Failed to launch settings from button long click", t);
+                    return false;
                 }
-                return true;
-            } catch (Throwable t) {
-                Log.w(TAG, "Failed to launch settings from button long click", t);
-                return false;
             }
         });
 

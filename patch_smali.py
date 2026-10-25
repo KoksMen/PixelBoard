@@ -357,6 +357,298 @@ with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/Gboa
     f.write(toolbar_order_action_smali)
 print("Created GboardToolbarOrderToggleAction.smali")
 
+# 1.6 Hide Stickers Action
+hide_stickers_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;
+.super Ljava/lang/Object;
+.source "GboardHideStickersToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeHideStickers(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardToolbar"
+    const-string v2, "Failed to toggle hide stickers setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(hide_stickers_action_smali)
+
+# 1.7 Hide GIF Action
+hide_gif_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;
+.super Ljava/lang/Object;
+.source "GboardHideGifToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeHideGif(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardToolbar"
+    const-string v2, "Failed to toggle hide gif setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(hide_gif_action_smali)
+
+# 1.8 Hide Themes Action
+hide_themes_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;
+.super Ljava/lang/Object;
+.source "GboardHideThemesToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeHideThemes(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardToolbar"
+    const-string v2, "Failed to toggle hide themes setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(hide_themes_action_smali)
+
+# 1.9 Hide Translate Action
+hide_translate_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;
+.super Ljava/lang/Object;
+.source "GboardHideTranslateToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeHideTranslate(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardToolbar"
+    const-string v2, "Failed to toggle hide translate setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(hide_translate_action_smali)
+
+# 1.10 Hide Clipboard Action
+hide_clipboard_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;
+.super Ljava/lang/Object;
+.source "GboardHideClipboardToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeHideClipboard(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardToolbar"
+    const-string v2, "Failed to toggle hide clipboard setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(hide_clipboard_action_smali)
+print("Created hide toolbar buttons toggle actions")
+
+
 # 2. Update GboardPatchesSettingsActivity.smali with literal strings and toggle rows
 settings_activity_path = "_decompiled/smali/com/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity.smali"
 with open(settings_activity_path, "r", encoding="utf-8") as f:
@@ -534,7 +826,268 @@ position_and_order_rows_smali = """
 
     move-object/from16 v2, v16
 
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+    # Hide stickers toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0441\u0442\u0438\u043a\u0435\u0440\u044b \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u0441\u0442\u0438\u043a\u0435\u0440\u043e\u0432 \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideStickers(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide GIF toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c GIF \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u043f\u043e\u0438\u0441\u043a\u0430 GIF \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideGif(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide themes toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0442\u0435\u043c\u044b \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u043f\u0430\u043b\u0438\u0442\u0440\u044b \u0442\u0435\u043c \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideThemes(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide translate toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u043f\u0435\u0440\u0435\u0432\u043e\u0434\u0447\u0438\u043a \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 Google \u041f\u0435\u0440\u0435\u0432\u043e\u0434\u0447\u0438\u043a\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideTranslate(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide clipboard toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0431\u0443\u0444\u0435\u0440 \u043e\u0431\u043c\u0435\u043d\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u0431\u0443\u0444\u0435\u0440\u0430 \u043e\u0431\u043c\u0435\u043d\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideClipboard(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
     invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"""
+
+if "GboardHideStickersToggleAction" not in content_norm:
+    # If GboardToolbarPositionToggleAction was already inserted, find it and insert filter rows after it
+    idx_order = content_norm.find("GboardToolbarOrderToggleAction")
+    if idx_order != -1:
+        target_add = "invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"
+        idx_add = content_norm.find(target_add, idx_order)
+        if idx_add != -1:
+            insert_pos = idx_add + len(target_add)
+            filter_rows_only = """# Hide stickers toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0441\u0442\u0438\u043a\u0435\u0440\u044b \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u0441\u0442\u0438\u043a\u0435\u0440\u043e\u0432 \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideStickers(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideStickersToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide GIF toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c GIF \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u043f\u043e\u0438\u0441\u043a\u0430 GIF \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideGif(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideGifToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide themes toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0442\u0435\u043c\u044b \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u043f\u0430\u043b\u0438\u0442\u0440\u044b \u0442\u0435\u043c \u0441 \u0432\u0435\u0440\u0445\u043d\u0435\u0439 \u043f\u0430\u043d\u0435\u043b\u0438 Gboard"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideThemes(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideThemesToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide translate toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u043f\u0435\u0440\u0435\u0432\u043e\u0434\u0447\u0438\u043a \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 Google \u041f\u0435\u0440\u0435\u0432\u043e\u0434\u0447\u0438\u043a\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideTranslate(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideTranslateToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Hide clipboard toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\u0421\u043a\u0440\u044b\u0442\u044c \u0431\u0443\u0444\u0435\u0440 \u043e\u0431\u043c\u0435\u043d\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const-string v18, "\u0423\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u043a\u043e\u043d\u043a\u0443 \u0431\u0443\u0444\u0435\u0440\u0430 \u043e\u0431\u043c\u0435\u043d\u0430 \u0441 \u043f\u0430\u043d\u0435\u043b\u0438"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readHideClipboard(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardHideClipboardToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"""
+            content_norm = content_norm[:insert_pos] + "\n" + filter_rows_only + content_norm[insert_pos:]
+            with open(settings_activity_path, "w", encoding="utf-8") as f:
+                f.write(content_norm)
+            print("Added Hide Toolbar Buttons toggle rows to GboardPatchesSettingsActivity")
 
 if "GboardToolbarPositionToggleAction" not in content_norm:
     idx_autofill = content_norm.find("GboardAutofillToggleAction")
