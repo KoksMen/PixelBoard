@@ -8,6 +8,7 @@
 package com.akshaykadam.pixelboard.extension.proofread;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -546,7 +547,25 @@ public final class GboardProofreadButton {
             if (isAutofill) {
                 GboardAutofillService.triggerAutofill(keyboardView);
             } else {
-                triggerWritingTools(keyboardView);
+                GboardProofreadService.checkAndShowDiff(keyboardView);
+            }
+        });
+
+        buttonFrame.setOnLongClickListener(v -> {
+            try {
+                Context ctx = v.getContext();
+                Intent intent = new Intent();
+                intent.setClassName(ctx.getPackageName(), "com.akshaykadam.pixelboard.extension.settings.GboardPatchesSettingsActivity");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+                try {
+                    buttonFrame.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                } catch (Throwable ignored) {
+                }
+                return true;
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to launch settings from button long click", t);
+                return false;
             }
         });
 
@@ -600,6 +619,17 @@ public final class GboardProofreadButton {
      */
     public static View findWritingToolsView(View root) {
         if (root == null) return null;
+        try {
+            String pkg = root.getContext().getPackageName();
+            int id = root.getResources().getIdentifier("key_pos_header_proofread", "id", pkg);
+            if (id != 0) {
+                View found = root.findViewById(id);
+                if (found != null && found.getVisibility() == View.VISIBLE) {
+                    return found;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         return findWritingToolsViewRecursive(root);
     }
 

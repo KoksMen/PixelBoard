@@ -216,11 +216,35 @@ public final class GboardProofreadOverlay {
                 scrollView.addView(diffView);
                 card.addView(scrollView, scrollParams);
 
-                // 3. Action Buttons Row (Отмена and Применить)
+                // 3. Action Buttons Row (✨ AI Google, Отмена and Применить)
                 LinearLayout actionsRow = new LinearLayout(context);
                 actionsRow.setOrientation(LinearLayout.HORIZONTAL);
-                actionsRow.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+                actionsRow.setGravity(Gravity.CENTER_VERTICAL);
                 actionsRow.setPadding(dp(context, 16), 0, dp(context, 16), dp(context, 12));
+
+                // Google AI Writing Tools Button (Left aligned)
+                TextView googleAiBtn = new TextView(context);
+                googleAiBtn.setText("✨ AI Google");
+                googleAiBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+                googleAiBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                googleAiBtn.setTextColor(secondaryTextColor);
+                googleAiBtn.setGravity(Gravity.CENTER);
+                googleAiBtn.setPadding(dp(context, 12), dp(context, 8), dp(context, 12), dp(context, 8));
+                GradientDrawable googleAiBg = new GradientDrawable();
+                googleAiBg.setShape(GradientDrawable.RECTANGLE);
+                googleAiBg.setCornerRadius(dp(context, 16));
+                googleAiBg.setColor(isDark ? Color.parseColor("#20FFFFFF") : Color.parseColor("#15000000"));
+                googleAiBtn.setBackground(googleAiBg);
+                googleAiBtn.setOnClickListener(v -> {
+                    dismiss(card);
+                    GboardProofreadButton.triggerWritingTools(keyboardView);
+                });
+                actionsRow.addView(googleAiBtn);
+
+                // Spacer between left action and right dialog buttons
+                View spacer = new View(context);
+                LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(0, 0, 1.0f);
+                actionsRow.addView(spacer, spacerParams);
 
                 // Cancel Button
                 TextView cancelBtn = new TextView(context);
@@ -229,7 +253,7 @@ public final class GboardProofreadOverlay {
                 cancelBtn.setTypeface(Typeface.DEFAULT_BOLD);
                 cancelBtn.setTextColor(secondaryTextColor);
                 cancelBtn.setGravity(Gravity.CENTER);
-                cancelBtn.setPadding(dp(context, 16), dp(context, 8), dp(context, 16), dp(context, 8));
+                cancelBtn.setPadding(dp(context, 14), dp(context, 8), dp(context, 14), dp(context, 8));
                 cancelBtn.setOnClickListener(v -> dismiss(card));
                 actionsRow.addView(cancelBtn);
 

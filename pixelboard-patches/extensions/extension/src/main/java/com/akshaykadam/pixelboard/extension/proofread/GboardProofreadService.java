@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 
 /**
  * Service for proofreading and correcting text via Yandex Speller API and grammar heuristics.
@@ -254,7 +255,7 @@ public final class GboardProofreadService {
         conn.setRequestProperty("User-Agent", "PixelBoard/18.4 (Android)");
 
         String postData = "text=" + URLEncoder.encode(text, "UTF-8")
-                + "&lang=ru,en&options=518";
+                + "&lang=ru,en&options=14";
 
         byte[] postBytes = postData.getBytes(StandardCharsets.UTF_8);
         conn.setFixedLengthStreamingMode(postBytes.length);
@@ -381,30 +382,131 @@ public final class GboardProofreadService {
     }
 
     /**
-     * Standard punctuation, spacing, and capitalization rules.
+     * Comprehensive Russian syntax, grammar, and punctuation engine.
+     * Places commas before conjunctions, formats introductory words, hyphenates particles,
+     * places question marks on questions, and fixes capitalization/spacing.
      */
     public static String applyGrammarHeuristics(String text) {
-        if (text == null || text.isEmpty()) {
+        if (text == null || text.trim().isEmpty()) {
             return text;
         }
 
-        String res = text;
-
-        // 1. Clean multiple spaces: "  " -> " "
-        res = res.replaceAll(" {2,}", " ");
-
-        // 2. Remove space before punctuation: " ," -> ",", " ." -> "."
-        res = res.replaceAll(" +([,.:;!?])", "$1");
-
-        // 3. Add space after punctuation if missing: ",слово" -> ", слово"
-        res = res.replaceAll("([,;])([a-zA-Zа-яА-ЯёЁ])", "$1 $2");
-
-        // 4. Ensure first character is capitalized if starting a sentence
-        if (res.length() > 0 && Character.isLowerCase(res.charAt(0))) {
-            res = Character.toUpperCase(res.charAt(0)) + (res.length() > 1 ? res.substring(1) : "");
+        // Preserve leading and trailing whitespace
+        int startSpaces = 0;
+        while (startSpaces < text.length() && Character.isWhitespace(text.charAt(startSpaces))) {
+            startSpaces++;
+        }
+        int endSpaces = 0;
+        while (endSpaces < text.length() && Character.isWhitespace(text.charAt(text.length() - 1 - endSpaces))) {
+            endSpaces++;
         }
 
-        return res;
+        String res = text.trim();
+
+        // 1. Hyphenated prepositions, adverbs, and particles
+        res = res.replaceAll("(?i)\\b(из)\\s+(за)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(из)\\s+(под)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
+        res = res.replaceAll("(?i)\\b(так)\\s+(таки)\\b", "так-таки");
+        res = res.replaceAll("(?i)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
+        res = res.replaceAll("(?i)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
+        res = res.replaceAll("(?i)\\b(едва)\\s+(едва)\\b", "едва-едва");
+        res = res.replaceAll("(?i)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
+        res = res.replaceAll("(?i)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(по)\\s+(русски|английски|немецки|моему|твоему|нашему|прежнему|видимому)\\b", "$1-$2");
+
+        // Particles -то, -нибудь, -либо
+        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
+
+        // 2. Compound conjunctions (must be executed before single conjunctions)
+        String[] compoundConjunctions = new String[] {
+                "потому что", "так как", "так что", "для того чтобы", "из-за того что",
+                "несмотря на то что", "в то время как", "с тех пор как", "до тех пор пока",
+                "как будто", "как только", "то есть", "а также", "вместо того чтобы",
+                "перед тем как", "после того как", "в связи с тем что", "благодаря тому что"
+        };
+        for (String conj : compoundConjunctions) {
+            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+        }
+
+        // 3. Opposing & coordinating conjunctions
+        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато|да и)\\b", "$1, $2");
+        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
+
+        // 4. Subordinate conjunctions & relative words
+        String[] subordinateConjunctions = new String[] {
+                "чтобы", "чтоб", "если", "когда", "хотя", "пока", "будто", "словно", "едва",
+                "который", "которая", "которое", "которые", "которого", "которой", "которому",
+                "которым", "которую", "которых", "которыми", "где", "куда", "откуда"
+        };
+        for (String conj : subordinateConjunctions) {
+            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+        }
+
+        // Subordinate "что"
+        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
+        // Revert false comma splits around specific idioms:
+        res = res.replaceAll("(?i),\\s*потому,\\s*что\\b", ", потому что");
+        res = res.replaceAll("(?i)\\bпотому,\\s*что\\b", "потому что");
+        res = res.replaceAll("(?i),\\s*только,\\s*что\\b", ", только что");
+        res = res.replaceAll("(?i)\\bтолько,\\s*что\\b", "только что");
+        res = res.replaceAll("(?i),\\s*разве,\\s*что\\b", ", разве что");
+        res = res.replaceAll("(?i)\\bразве,\\s*что\\b", "разве что");
+        res = res.replaceAll("(?i),\\s*кое,\\s*что\\b", "кое-что");
+        res = res.replaceAll("(?i)\\bкое,\\s*что\\b", "кое-что");
+
+        // 5. Introductory words & phrases
+        String[] introWords = new String[] {
+                "конечно", "кстати", "например", "к счастью", "к сожалению", "в общем",
+                "короче", "между прочим", "разумеется", "безусловно", "естественно",
+                "во-первых", "во-вторых", "в-третьих", "впрочем", "пожалуй", "вероятно",
+                "следовательно", "таким образом"
+        };
+        for (String iw : introWords) {
+            // At start of sentence
+            res = res.replaceAll("(?i)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?!\\s*[,:])", "$1$2,");
+            // In middle of sentence
+            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?!\\s*[,:])", "$1, $2,");
+        }
+
+        // 6. Typographic spacing and punctuation cleanup
+        res = res.replaceAll("[ \\t]{2,}", " ");
+        res = res.replaceAll("\\s+([,.:;!?])", "$1");
+        res = res.replaceAll(",\\s*,", ",");
+        res = res.replaceAll(",\\s*([.!?])", "$1");
+        res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z])", "$1 $2");
+
+        // 7. Capitalize first letter of each sentence
+        StringBuilder capitalized = new StringBuilder();
+        boolean capitalizeNext = true;
+        for (int i = 0; i < res.length(); i++) {
+            char c = res.charAt(i);
+            if (capitalizeNext && Character.isLetter(c)) {
+                capitalized.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                capitalized.append(c);
+                if (c == '.' || c == '!' || c == '?') {
+                    capitalizeNext = true;
+                }
+            }
+        }
+        res = capitalized.toString();
+
+        // 8. Add question mark to interrogative sentences if missing
+        if (Pattern.compile("^(почему|зачем|как|где|куда|откуда|когда|кто|что|сколько|разве|неужели)\\b(?!-)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(res).find()) {
+            if (!Pattern.compile("[.!?]$").matcher(res).find()
+                    && !Pattern.compile("(?i)\\b(потому что|из-за того что)\\b").matcher(res).find()) {
+                res += "?";
+            }
+        }
+
+        // Reattach leading and trailing whitespace
+        String prefix = text.substring(0, startSpaces);
+        String suffix = text.substring(text.length() - endSpaces);
+        return prefix + res + suffix;
     }
 
     /**

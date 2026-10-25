@@ -57,6 +57,42 @@ public class GboardProofreadServiceTest {
     }
 
     @Test
+    public void testRussianConjunctionsAndPunctuation() {
+        assertEquals("Я думаю, что он придет, потому что надо",
+                GboardProofreadService.applyGrammarHeuristics("я думаю что он придет потому что надо"));
+
+        assertEquals("Он сказал, что придет, но опоздал, так как был занят",
+                GboardProofreadService.applyGrammarHeuristics("он сказал что придет но опоздал так как был занят"));
+
+        assertEquals("Кстати, это очень удобная клавиатура, которую я использую",
+                GboardProofreadService.applyGrammarHeuristics("кстати это очень удобная клавиатура которую я использую"));
+    }
+
+    @Test
+    public void testRussianHyphens() {
+        assertEquals("Почему-то из-за дождя мы не пошли гулять",
+                GboardProofreadService.applyGrammarHeuristics("почему то из за дождя мы не пошли гулять"));
+
+        assertEquals("Всё-таки это кое-как работает",
+                GboardProofreadService.applyGrammarHeuristics("все таки это кое как работает"));
+
+        assertEquals("Кто-нибудь знает, где это?",
+                GboardProofreadService.applyGrammarHeuristics("кто нибудь знает где это?"));
+    }
+
+    @Test
+    public void testRussianIntroductoryWordsAndQuestions() {
+        assertEquals("Конечно, я знаю, где ты живешь",
+                GboardProofreadService.applyGrammarHeuristics("конечно я знаю где ты живешь"));
+
+        assertEquals("В общем, всё-таки мы решили этот вопрос",
+                GboardProofreadService.applyGrammarHeuristics("в общем все таки мы решили этот вопрос"));
+
+        assertEquals("Почему ты не пришел вовремя?",
+                GboardProofreadService.applyGrammarHeuristics("почему ты не пришел вовремя"));
+    }
+
+    @Test
     public void testComputeDiffTokens() {
         String orig = "Превет как дила";
         String corr = "Привет как дела";
