@@ -204,6 +204,10 @@ public final class GboardSpacebarSwipeRuntime {
             if (keyboardView == null || event == null || isSendingCancel) {
                 return false;
             }
+
+            // Always ensure quick actions bar (Proofread / Autofill) is attached
+            com.akshaykadam.pixelboard.extension.proofread.GboardProofreadButton.attach(keyboardView);
+
             Context context = keyboardView.getContext();
             if (!forceEnabledForTesting && !GboardSpacebarSettings.isEnabled(context)) {
                 return false;
@@ -212,9 +216,6 @@ public final class GboardSpacebarSwipeRuntime {
             int action = event.getActionMasked();
             switch (action) {
                 case MotionEvent.ACTION_DOWN: {
-                    // Attach proofread trigger button if enabled
-                    com.akshaykadam.pixelboard.extension.proofread.GboardProofreadButton.attach(keyboardView);
-
                     View spacebar = findSpacebarView(keyboardView);
                     if (spacebar == null) {
                         // This view does not contain a spacebar (e.g. candidates/suggestions bar)
@@ -225,6 +226,7 @@ public final class GboardSpacebarSwipeRuntime {
 
                     boolean onSpace = isEventInsideSpacebar(keyboardView, spacebar, event);
                     if (onSpace) {
+                        com.akshaykadam.pixelboard.extension.proofread.GboardProofreadButton.showProofreadOnTouch(keyboardView);
                         startX = event.getX();
                         startY = event.getY();
                         startTime = SystemClock.uptimeMillis();

@@ -7,11 +7,9 @@
  */
 package com.akshaykadam.pixelboard.extension.proofread;
 
+import android.animation.ObjectAnimator;
 import android.content.Context;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
@@ -27,28 +25,37 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.akshaykadam.pixelboard.extension.autofill.GboardAutofillService;
+import com.akshaykadam.pixelboard.extension.autofill.GboardAutofillSettings;
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarIndicatorOverlay;
 
 import java.lang.ref.WeakReference;
 
 /**
- * Trigger button displayed on the keyboard header/strip to run text proofreading and correction.
+ * Quick Actions Bar displayed on the keyboard header/strip to run:
+ * 1. Text proofreading & correction (✨ Проверить)
+ * 2. Manual Autofill trigger (🔑)
  */
 public final class GboardProofreadButton {
     private static final String TAG = "PixelBoardProofread";
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
-    private static WeakReference<View> sCurrentButtonRef = null;
+    private static WeakReference<ViewGroup> sCurrentBarRef = null;
+    private static WeakReference<View> sProofreadButtonRef = null;
 
     private GboardProofreadButton() {
     }
 
     /**
-     * Attaches the trigger button to the keyboard container if not already attached.
+     * Attaches the Quick Actions Bar to the keyboard container if not already attached.
      */
     public static void attach(View keyboardView) {
         if (keyboardView == null) return;
         Context context = keyboardView.getContext();
-        if (!GboardProofreadSettings.isEnabled(context)) {
+
+        boolean proofreadEnabled = GboardProofreadSettings.isEnabled(context);
+        boolean autofillEnabled = GboardAutofillSettings.isEnabled(context);
+
+        if (!proofreadEnabled && !autofillEnabled) {
             detach();
             return;
         }
@@ -59,74 +66,173 @@ public final class GboardProofreadButton {
                 if (!(root instanceof ViewGroup)) return;
                 ViewGroup container = (ViewGroup) root;
 
-                View existing = sCurrentButtonRef != null ? sCurrentButtonRef.get() : null;
-                if (existing != null && existing.getParent() == container) {
+                ViewGroup existingBar = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
+                if (existingBar != null && existingBar.getParent() == container) {
                     return; // Already attached
                 }
 
-                if (existing != null && existing.getParent() instanceof ViewGroup) {
-                    ((ViewGroup) existing.getParent()).removeView(existing);
+                if (existingBar != null && existingBar.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) existingBar.getParent()).removeView(existingBar);
                 }
 
-                LinearLayout btn = createButton(context, keyboardView);
+                LinearLayout bar = createBar(context, keyboardView, proofreadEnabled, autofillEnabled);
+                if (bar == null) return;
 
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.gravity = Gravity.TOP | Gravity.END;
                 params.topMargin = dp(context, 4);
-                params.rightMargin = dp(context, 10);
+                params.rightMargin = dp(context, 8);
 
-                container.addView(btn, params);
-                sCurrentButtonRef = new WeakReference<>(btn);
+                container.addView(bar, params);
+                sCurrentBarRef = new WeakReference<>(bar);
 
             } catch (Throwable t) {
-                Log.w(TAG, "Failed to attach proofread button", t);
+                Log.w(TAG, "Failed to attach quick actions bar", t);
+            }
+        });
+    }
+
+    /**
+     * Reveals the proofread button when spacebar interaction occurs (if fast mode is disabled).
+     */
+    public static void showProofreadOnTouch(View keyboardView) {
+        if (keyboardView == null) return;
+        Context context = keyboardView.getContext();
+        if (!GboardProofreadSettings.isEnabled(context)) return;
+
+        sMainHandler.post(() -> {
+            try {
+                attach(keyboardView);
+                View btn = sProofreadButtonRef != null ? sProofreadButtonRef.get() : null;
+                if (btn != null && btn.getVisibility() != View.VISIBLE) {
+                    btn.setVisibility(View.VISIBLE);
+                    btn.setAlpha(0f);
+                    ObjectAnimator.ofFloat(btn, "alpha", 0f, 1f).setDuration(160).start();
+                }
+            } catch (Throwable ignored) {
             }
         });
     }
 
     public static void detach() {
         sMainHandler.post(() -> {
-            View existing = sCurrentButtonRef != null ? sCurrentButtonRef.get() : null;
+            ViewGroup existing = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
             if (existing != null && existing.getParent() instanceof ViewGroup) {
                 ((ViewGroup) existing.getParent()).removeView(existing);
             }
-            if (sCurrentButtonRef != null) {
-                sCurrentButtonRef.clear();
+            if (sCurrentBarRef != null) {
+                sCurrentBarRef.clear();
+            }
+            if (sProofreadButtonRef != null) {
+                sProofreadButtonRef.clear();
             }
         });
     }
 
-    private static LinearLayout createButton(Context context, View keyboardView) {
-        LinearLayout layout = new LinearLayout(context);
-        layout.setOrientation(LinearLayout.HORIZONTAL);
-        layout.setGravity(Gravity.CENTER);
-        layout.setClickable(true);
-        layout.setFocusable(true);
-
-        int padH = dp(context, 9);
-        int padV = dp(context, 5);
-        layout.setPadding(padH, padV, padH, padV);
+    private static LinearLayout createBar(
+            Context context, View keyboardView, boolean proofreadEnabled, boolean autofillEnabled) {
+        LinearLayout bar = new LinearLayout(context);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
 
         int surfaceColor = GboardSpacebarIndicatorOverlay.resolveSurfaceColor(context);
         boolean isDark = isColorDark(surfaceColor);
 
+        // 1. Autofill Button: [ 🔑 ]
+        if (autofillEnabled) {
+            View autofillBtn = createAutofillButton(context, keyboardView, surfaceColor, isDark);
+            bar.addView(autofillBtn);
+        }
+
+        // 2. Proofread Button: [ ✨ Проверить ]
+        if (proofreadEnabled) {
+            boolean alwaysVisible = GboardProofreadSettings.isAlwaysVisible(context);
+            View proofreadBtn = createProofreadButton(context, keyboardView, surfaceColor, isDark);
+            if (!alwaysVisible) {
+                proofreadBtn.setVisibility(View.GONE);
+            }
+            if (autofillEnabled) {
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) proofreadBtn.getLayoutParams();
+                if (lp != null) {
+                    lp.leftMargin = dp(context, 6);
+                }
+            }
+            bar.addView(proofreadBtn);
+            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
+        }
+
+        return bar;
+    }
+
+    private static View createAutofillButton(
+            Context context, View keyboardView, int surfaceColor, boolean isDark) {
+        LinearLayout btn = new LinearLayout(context);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
+        btn.setGravity(Gravity.CENTER);
+        btn.setClickable(true);
+        btn.setFocusable(true);
+
+        int padH = dp(context, 8);
+        int padV = dp(context, 5);
+        btn.setPadding(padH, padV, padH, padV);
+
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setCornerRadius(dp(context, 16));
+        bg.setCornerRadius(dp(context, 15));
         bg.setColor(surfaceColor);
         bg.setStroke(dp(context, 1), isDark ? Color.parseColor("#33FFFFFF") : Color.parseColor("#1F000000"));
-        layout.setBackground(bg);
+        btn.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            layout.setElevation(dp(context, 4));
+            btn.setElevation(dp(context, 3));
+        }
+
+        TextView keyIcon = new TextView(context);
+        keyIcon.setText("🔑");
+        keyIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        keyIcon.setGravity(Gravity.CENTER);
+        btn.addView(keyIcon);
+
+        btn.setOnClickListener(v -> {
+            try {
+                btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            } catch (Throwable ignored) {
+            }
+            GboardAutofillService.triggerAutofill(keyboardView);
+        });
+
+        return btn;
+    }
+
+    private static View createProofreadButton(
+            Context context, View keyboardView, int surfaceColor, boolean isDark) {
+        LinearLayout btn = new LinearLayout(context);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
+        btn.setGravity(Gravity.CENTER);
+        btn.setClickable(true);
+        btn.setFocusable(true);
+
+        int padH = dp(context, 9);
+        int padV = dp(context, 5);
+        btn.setPadding(padH, padV, padH, padV);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setCornerRadius(dp(context, 15));
+        bg.setColor(surfaceColor);
+        bg.setStroke(dp(context, 1), isDark ? Color.parseColor("#33FFFFFF") : Color.parseColor("#1F000000"));
+        btn.setBackground(bg);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            btn.setElevation(dp(context, 3));
         }
 
         TextView iconText = new TextView(context);
         iconText.setText("✨");
         iconText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         iconText.setGravity(Gravity.CENTER);
-        layout.addView(iconText);
+        btn.addView(iconText);
 
         TextView labelText = new TextView(context);
         labelText.setText("Проверить");
@@ -139,17 +245,21 @@ public final class GboardProofreadButton {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         labelParams.leftMargin = dp(context, 4);
         labelText.setLayoutParams(labelParams);
-        layout.addView(labelText);
+        btn.addView(labelText);
 
-        layout.setOnClickListener(v -> {
+        btn.setOnClickListener(v -> {
             try {
-                layout.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             } catch (Throwable ignored) {
             }
             GboardProofreadService.checkAndShowDiff(keyboardView);
         });
 
-        return layout;
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        btn.setLayoutParams(lp);
+
+        return btn;
     }
 
     private static boolean isColorDark(int color) {
