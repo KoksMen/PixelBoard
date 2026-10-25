@@ -630,23 +630,16 @@ public final class GboardAiWritingToolsRuntime {
                 || FLAG_WRITING_TOOLS_V2_ALLOW_EMPTY_USER_INSTRUCTION.equals(flagName)
                 || FLAG_WRITING_TOOLS_V2_SHOW_PREDEFINED_PROMPTS.equals(flagName)
                 || FLAG_ENABLE_WRITING_TOOLS_MY_STYLE.equals(flagName)
-                || FLAG_ENABLE_WRITING_TOOLS_MY_STYLE_PLUS.equals(flagName)) {
-            if (originalResult instanceof Boolean) {
-                return (settings.v2Enabled && GboardAiWritingToolsDeviceSupport.isSupportedDevice())
-                        ? Boolean.TRUE
-                        : Boolean.FALSE;
-            }
-            return originalResult;
-        }
-
-        if (FLAG_CONFIG_PROOFREAD.equals(flagName)
+                || FLAG_ENABLE_WRITING_TOOLS_MY_STYLE_PLUS.equals(flagName)
+                || FLAG_CONFIG_PROOFREAD.equals(flagName)
                 || FLAG_WRITING_TOOLS.equals(flagName)
                 || FLAG_ENABLE_WRITING_TOOLS_COOPERATIVE_MODE.equals(flagName)
                 || FLAG_WRITING_HELPER_ON_SELECTED_TEXT.equals(flagName)
                 || FLAG_WRITING_HELPER_ENABLE_TEXT_STYLIZATION_INTERNAL.equals(flagName)
                 || FLAG_WRITING_HELPER.equals(flagName)
                 || FLAG_ENABLE_WRITING_TOOLS_FOR_MINORS.equals(flagName)
-                || FLAG_ENABLE_MODELESS_SMART_EDIT.equals(flagName)) {
+                || FLAG_ENABLE_MODELESS_SMART_EDIT.equals(flagName)
+                || FLAG_ENABLE_AUTOFILL_IME_INTEGRATION.equals(flagName)) {
             return Boolean.TRUE;
         }
         return originalResult;

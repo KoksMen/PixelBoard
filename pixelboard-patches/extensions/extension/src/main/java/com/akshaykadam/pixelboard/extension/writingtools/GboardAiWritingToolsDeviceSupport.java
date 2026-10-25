@@ -62,10 +62,8 @@ public final class GboardAiWritingToolsDeviceSupport {
         if (forcedDeviceSupportForTesting != null) {
             return forcedDeviceSupportForTesting.booleanValue();
         }
-        if (isEmulator()) {
-            return true;
-        }
-        return isSupportedDevice(Build.MANUFACTURER, Build.MODEL, Build.DEVICE);
+        // PixelBoard mod enables AI Writing Tools unconditionally on all devices
+        return true;
     }
 
     private static boolean isEmulator() {

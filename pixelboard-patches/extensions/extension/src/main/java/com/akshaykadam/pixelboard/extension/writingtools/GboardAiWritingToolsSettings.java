@@ -19,7 +19,7 @@ public final class GboardAiWritingToolsSettings {
             "PRIVATE_INFERENCE_ASTREA";
     public static final boolean DEFAULT_ENABLED = true;
     public static final boolean DEFAULT_ALL_KEYBOARDS = true;
-    public static final boolean DEFAULT_V2_ENABLED = false;
+    public static final boolean DEFAULT_V2_ENABLED = true;
     public static final String DEFAULT_BACKEND_TYPE = BACKEND_GBOARD_SERVER;
 
     private GboardAiWritingToolsSettings() {

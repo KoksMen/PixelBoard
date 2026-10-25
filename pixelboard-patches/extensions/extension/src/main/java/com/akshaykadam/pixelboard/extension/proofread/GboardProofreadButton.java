@@ -13,7 +13,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -31,17 +30,19 @@ import com.akshaykadam.pixelboard.extension.autofill.GboardAutofillSettings;
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarIndicatorOverlay;
 
 import java.lang.ref.WeakReference;
+import java.util.Locale;
 
 /**
  * Pinned toolbar icon buttons in Gboard's top header strip:
  * 1. Autofill key button (🔑 Bitwarden) - native vector icon button
- * 2. Text proofread button (✨ Проверка) - native vector icon button
+ * 2. Text proofread button (✨ Проверка / Инструменты редактора) - native vector icon button
  *
  * Designed to look and feel identical to Gboard's native 4-squares and microphone buttons.
  */
 public final class GboardProofreadButton {
     private static final String TAG = "PixelBoardProofread";
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
+    private static final String CUSTOM_BUTTON_TAG = "pixelboard_custom_button";
 
     private static WeakReference<ViewGroup> sCurrentBarRef = null;
     private static WeakReference<View> sProofreadButtonRef = null;
@@ -188,6 +189,7 @@ public final class GboardProofreadButton {
 
                 if (existingBar != null && attachedParent == host && existingBar.getParent() == host) {
                     existingBar.bringToFront();
+                    updateBarVisibility(existingBar, host, context);
                     return; // Already attached to this host
                 }
 
@@ -222,7 +224,7 @@ public final class GboardProofreadButton {
                     params.rightMargin = 0;
                 } else {
                     params.gravity |= Gravity.END;
-                    int micSpace = dp(context, 44);
+                    int micSpace = dp(context, 48);
                     if (micView != null && micView.getVisibility() == View.VISIBLE) {
                         int micW = micView.getWidth();
                         int hostW = host.getWidth();
@@ -245,10 +247,77 @@ public final class GboardProofreadButton {
                 sCurrentBarRef = new WeakReference<>(bar);
                 sAttachedParentRef = new WeakReference<>(host);
 
+                // Initial visibility update
+                updateBarVisibility(bar, host, context);
+
+                // Listen to layout changes on host to hide overlay during sub-screens (Jarvis editor, emoji, etc.)
+                host.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                    @Override
+                    public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                               int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                        ViewGroup b = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
+                        if (b != null && b.getParent() == host) {
+                            updateBarVisibility(b, host, context);
+                        }
+                    }
+                });
+
             } catch (Throwable t) {
                 Log.w(TAG, "Failed to attach quick actions bar", t);
             }
         });
+    }
+
+    /**
+     * Checks if the keyboard is currently showing a subview/editor (like "Инструменты редактора",
+     * emoji, clipboard, translate, etc.) and hides the overlay bar so it never superimposes
+     * over the header title or back button.
+     */
+    public static void updateBarVisibility(ViewGroup bar, ViewGroup host, Context context) {
+        if (bar == null || host == null || context == null) return;
+        try {
+            String pkg = context.getPackageName();
+
+            // 1. If any "back to prime" button is present and visible, a subview is open
+            int[] subviewBackIds = new int[]{
+                    host.getResources().getIdentifier("key_pos_jarvis_back_to_prime", "id", pkg),
+                    host.getResources().getIdentifier("key_pos_back_to_prime", "id", pkg),
+                    host.getResources().getIdentifier("key_pos_back_to_prime2", "id", pkg),
+                    host.getResources().getIdentifier("key_pos_clipboard_back_to_prime", "id", pkg),
+                    host.getResources().getIdentifier("key_pos_textediting_back_to_prime", "id", pkg),
+                    host.getResources().getIdentifier("key_pos_translate_back", "id", pkg),
+            };
+
+            View root = host.getRootView();
+            for (int id : subviewBackIds) {
+                if (id != 0 && root != null) {
+                    View backView = root.findViewById(id);
+                    if (backView != null && backView.getVisibility() == View.VISIBLE) {
+                        if (bar.getVisibility() != View.GONE) {
+                            bar.setVisibility(View.GONE);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // 2. Also check if the standard 4-squares menu button is present and visible
+            int menuId = host.getResources().getIdentifier("key_pos_header_access_points_menu", "id", pkg);
+            View menuView = menuId != 0 ? host.findViewById(menuId) : null;
+            if (menuView == null || menuView.getVisibility() != View.VISIBLE) {
+                if (bar.getVisibility() != View.GONE) {
+                    bar.setVisibility(View.GONE);
+                }
+                return;
+            }
+
+            // 3. In prime typing keyboard mode: make bar visible
+            if (bar.getVisibility() != View.VISIBLE) {
+                bar.setVisibility(View.VISIBLE);
+                bar.bringToFront();
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -434,6 +503,7 @@ public final class GboardProofreadButton {
         FrameLayout buttonFrame = new FrameLayout(context);
         buttonFrame.setClickable(true);
         buttonFrame.setFocusable(true);
+        buttonFrame.setTag(CUSTOM_BUTTON_TAG);
 
         int buttonSize = dp(context, 38);
         LinearLayout.LayoutParams frameParams = new LinearLayout.LayoutParams(buttonSize, buttonSize);
@@ -476,11 +546,109 @@ public final class GboardProofreadButton {
             if (isAutofill) {
                 GboardAutofillService.triggerAutofill(keyboardView);
             } else {
-                GboardProofreadService.checkAndShowDiff(keyboardView);
+                triggerWritingTools(keyboardView);
             }
         });
 
         return buttonFrame;
+    }
+
+    /**
+     * Triggers Gboard's native "Инструменты редактора ✨" / AI Writing Tools,
+     * opening the full sentence proofread and grammar editor with "Использовать этот вариант".
+     * Falls back to Yandex Speller if native tools are not available on the current device/field.
+     */
+    public static void triggerWritingTools(View keyboardView) {
+        if (keyboardView == null) return;
+        try {
+            final View root = keyboardView.getRootView() != null ? keyboardView.getRootView() : keyboardView;
+
+            // 1. Search for existing Writing Tools / Jarvis access point in the active toolbar
+            View writingToolsView = findWritingToolsView(root);
+            if (writingToolsView != null) {
+                writingToolsView.performClick();
+                return;
+            }
+
+            // 2. If not directly on toolbar, open the 4-squares features menu and click it
+            String pkg = root.getContext().getPackageName();
+            int menuId = root.getResources().getIdentifier("key_pos_header_access_points_menu", "id", pkg);
+            View menuView = menuId != 0 ? root.findViewById(menuId) : null;
+            if (menuView != null) {
+                menuView.performClick();
+                root.postDelayed(() -> {
+                    try {
+                        View target = findWritingToolsView(root.getRootView());
+                        if (target != null) {
+                            target.performClick();
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }, 120);
+                return;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to launch native writing tools", t);
+        }
+
+        // Fallback: custom Yandex Speller proofread
+        GboardProofreadService.checkAndShowDiff(keyboardView);
+    }
+
+    /**
+     * Recursively traverses the view tree to locate the native Writing Tools ("Инструменты редактора") button.
+     */
+    public static View findWritingToolsView(View root) {
+        if (root == null) return null;
+        return findWritingToolsViewRecursive(root);
+    }
+
+    private static View findWritingToolsViewRecursive(View v) {
+        if (v == null) return null;
+
+        // Ignore our own custom buttons
+        if (CUSTOM_BUTTON_TAG.equals(v.getTag())) {
+            return null;
+        }
+
+        CharSequence desc = v.getContentDescription();
+        if (desc != null) {
+            String s = desc.toString().toLowerCase(Locale.ROOT);
+            if (s.contains("инструменты редактора") || s.contains("writing tools") || s.contains("proofread")) {
+                return v;
+            }
+        }
+
+        Object tag = v.getTag();
+        if (tag instanceof String) {
+            String s = ((String) tag).toLowerCase(Locale.ROOT);
+            if (s.contains("jarvis") || s.contains("writing_tools")) {
+                return v;
+            }
+        }
+
+        try {
+            int id = v.getId();
+            if (id != View.NO_ID && v.getResources() != null) {
+                String entryName = v.getResources().getResourceEntryName(id).toLowerCase(Locale.ROOT);
+                if (entryName.contains("jarvis") || entryName.contains("header_proofread")) {
+                    return v;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View found = findWritingToolsViewRecursive(vg.getChildAt(i));
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static boolean isColorDark(int color) {

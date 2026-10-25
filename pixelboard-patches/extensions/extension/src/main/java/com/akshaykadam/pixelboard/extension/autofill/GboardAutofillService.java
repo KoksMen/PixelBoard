@@ -7,23 +7,26 @@
  */
 package com.akshaykadam.pixelboard.extension.autofill;
 
+import android.app.ActivityOptions;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
-import android.view.autofill.AutofillManager;
 import android.view.inputmethod.InputConnection;
 import android.widget.Toast;
 
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarSwipeRuntime;
+
+import java.lang.reflect.Method;
 
 /**
  * Service to invoke the Autofill Manager (e.g. Bitwarden, KeePass, Google Password Manager)
@@ -80,13 +83,41 @@ public final class GboardAutofillService {
         };
         for (String pkg : known) {
             try {
-                if (context.getPackageManager().getLaunchIntentForPackage(pkg) != null) {
+                if (resolveLaunchIntent(context, pkg) != null) {
                     return pkg;
                 }
             } catch (Throwable ignored) {
             }
         }
         return "com.x8bit.bitwarden";
+    }
+
+    /**
+     * Resolves or constructs a launch intent for the given package name,
+     * working around Android 11+ package visibility filtering (&lt;queries&gt;).
+     */
+    public static Intent resolveLaunchIntent(Context context, String pkg) {
+        if (pkg == null || pkg.isEmpty()) return null;
+        if (context != null) {
+            try {
+                Intent intent = context.getPackageManager().getLaunchIntentForPackage(pkg);
+                if (intent != null) return intent;
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Direct explicit intent fallbacks for known password managers
+        if ("com.x8bit.bitwarden".equals(pkg)) {
+            Intent directIntent = new Intent(Intent.ACTION_MAIN);
+            directIntent.setComponent(new ComponentName(pkg, "com.x8bit.bitwarden.MainActivity"));
+            directIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            return directIntent;
+        }
+
+        Intent genericIntent = new Intent(Intent.ACTION_MAIN);
+        genericIntent.setPackage(pkg);
+        genericIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        return genericIntent;
     }
 
     /**
@@ -124,38 +155,48 @@ public final class GboardAutofillService {
             }
         }
 
-        // 2. Also trigger requestAutofill via AutofillManager if available
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                AutofillManager afm = (AutofillManager) context.getSystemService("autofill");
-                if (afm != null) {
-                    afm.requestAutofill(keyboardView);
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-
-        // 3. Forcibly launch the active password manager (e.g. Bitwarden)
+        // 2. Forcibly launch the active password manager (e.g. Bitwarden) with BAL bypass
         String autofillPkg = getAutofillServicePackage(context);
         boolean launched = false;
         if (autofillPkg != null && !autofillPkg.isEmpty()) {
             try {
-                Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(autofillPkg);
+                Intent launchIntent = resolveLaunchIntent(context, autofillPkg);
                 if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                    Bundle bundle = null;
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        try {
+                            ActivityOptions options = ActivityOptions.makeBasic();
+                            Method m = ActivityOptions.class.getMethod("setPendingIntentBackgroundActivityStartMode", int.class);
+                            m.invoke(options, 1); // MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                            bundle = options.toBundle();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+
                     try {
                         PendingIntent pi = PendingIntent.getActivity(
                                 context, 1001, launchIntent,
                                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                        pi.send();
+                        if (bundle != null) {
+                            pi.send(context, 0, null, null, null, null, bundle);
+                        } else {
+                            pi.send();
+                        }
                         launched = true;
                     } catch (Throwable t) {
-                        context.startActivity(launchIntent);
+                        if (bundle != null) {
+                            context.startActivity(launchIntent, bundle);
+                        } else {
+                            context.startActivity(launchIntent);
+                        }
                         launched = true;
                     }
+
                     String appName = autofillPkg.contains("bitwarden") ? "Bitwarden" : "Менеджер паролей";
                     showToast(context, "Открытие " + appName + " 🔑");
-                    logi(TAG, "Successfully launched password manager via PendingIntent: " + autofillPkg);
+                    logi(TAG, "Successfully launched password manager: " + autofillPkg);
                 }
             } catch (Throwable t) {
                 logw(TAG, "Failed to launch password manager: " + autofillPkg);
