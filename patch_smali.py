@@ -367,7 +367,7 @@ if "GboardAutofillToggleAction" not in content_norm:
 else:
     print("Extra rows already present or anchor not found")
 
-# 3. Clean hook for SoftKeyboardView.smali (no malformed catch block; handleSoftKeyboardViewTouchEvent is protected in Java)
+# 3. Clean hook for SoftKeyboardView.smali
 skv_path = "_decompiled/smali_classes2/com/google/android/libraries/inputmethod/widgets/SoftKeyboardView.smali"
 with open(skv_path, "r", encoding="utf-8") as f:
     skv_content = f.read()
@@ -386,9 +386,32 @@ clean_skv_hook = """.method public final dispatchTouchEvent(Landroid/view/Motion
     :cond_spacebar_softkeyboard_normal"""
 
 if clean_skv_hook in skv_norm:
-    print("SoftKeyboardView hook already in clean state")
+    print("SoftKeyboardView dispatchTouchEvent hook already in clean state")
 else:
-    print("Warning: SoftKeyboardView hook not matched")
+    print("Warning: SoftKeyboardView dispatchTouchEvent hook not matched")
+
+# 3.1 Hook onAttachedToWindow
+target_attach = "invoke-super {p0}, Lcom/google/android/libraries/inputmethod/widgets/AdditionalPaddingFrameLayout;->onAttachedToWindow()V"
+replacement_attach = """invoke-super {p0}, Lcom/google/android/libraries/inputmethod/widgets/AdditionalPaddingFrameLayout;->onAttachedToWindow()V
+
+    invoke-static {p0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadButton;->onSoftKeyboardViewAttached(Landroid/view/View;)V"""
+
+if "GboardProofreadButton;->onSoftKeyboardViewAttached" not in skv_norm and target_attach in skv_norm:
+    skv_norm = skv_norm.replace(target_attach, replacement_attach, 1)
+    print("Hooked onAttachedToWindow in SoftKeyboardView")
+
+# 3.2 Hook onLayout
+target_layout = "invoke-super/range {p0 .. p5}, Lcom/google/android/libraries/inputmethod/widgets/AdditionalPaddingFrameLayout;->onLayout(ZIIII)V"
+replacement_layout = """invoke-super/range {p0 .. p5}, Lcom/google/android/libraries/inputmethod/widgets/AdditionalPaddingFrameLayout;->onLayout(ZIIII)V
+
+    invoke-static {p0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadButton;->onSoftKeyboardViewAttached(Landroid/view/View;)V"""
+
+if target_layout in skv_norm and replacement_layout not in skv_norm:
+    skv_norm = skv_norm.replace(target_layout, replacement_layout, 1)
+    print("Hooked onLayout in SoftKeyboardView")
+
+with open(skv_path, "w", encoding="utf-8") as f:
+    f.write(skv_norm)
 
 # 4. Clean hook for LatinIME.smali (no malformed catch block; registerInputMethodService is protected in Java)
 lime_path = "_decompiled/smali_classes2/com/android/inputmethod/latin/LatinIME.smali"

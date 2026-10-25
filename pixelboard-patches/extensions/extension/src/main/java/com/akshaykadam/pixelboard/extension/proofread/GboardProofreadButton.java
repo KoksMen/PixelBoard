@@ -10,6 +10,7 @@ package com.akshaykadam.pixelboard.extension.proofread;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
@@ -32,21 +33,33 @@ import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarIndicatorOver
 import java.lang.ref.WeakReference;
 
 /**
- * Quick Actions Bar displayed on the keyboard header/strip to run:
+ * Pinned Quick Actions Bar mounted directly on the keyboard (SoftKeyboardView)
+ * providing immediate 1-tap access to:
  * 1. Text proofreading & correction (✨ Проверить)
- * 2. Manual Autofill trigger (🔑)
+ * 2. Password & Autofill manager (🔑 Bitwarden)
  */
 public final class GboardProofreadButton {
     private static final String TAG = "PixelBoardProofread";
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
+
     private static WeakReference<ViewGroup> sCurrentBarRef = null;
     private static WeakReference<View> sProofreadButtonRef = null;
+    private static WeakReference<View> sAutofillButtonRef = null;
+    private static WeakReference<ViewGroup> sAttachedParentRef = null;
 
     private GboardProofreadButton() {
     }
 
     /**
-     * Attaches the Quick Actions Bar to the keyboard container if not already attached.
+     * Hook called from SoftKeyboardView.onAttachedToWindow() and onLayout()
+     * to guarantee that the bar is pinned immediately when the keyboard is displayed.
+     */
+    public static void onSoftKeyboardViewAttached(View keyboardView) {
+        attach(keyboardView);
+    }
+
+    /**
+     * Attaches the Quick Actions Bar directly onto the keyboard view container.
      */
     public static void attach(View keyboardView) {
         if (keyboardView == null) return;
@@ -62,13 +75,16 @@ public final class GboardProofreadButton {
 
         sMainHandler.post(() -> {
             try {
-                View root = keyboardView.getRootView();
-                if (!(root instanceof ViewGroup)) return;
-                ViewGroup container = (ViewGroup) root;
+                // Select the best keyboard host ViewGroup
+                ViewGroup host = findBestKeyboardHost(keyboardView);
+                if (host == null) return;
 
                 ViewGroup existingBar = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
-                if (existingBar != null && existingBar.getParent() == container) {
-                    return; // Already attached
+                ViewGroup attachedParent = sAttachedParentRef != null ? sAttachedParentRef.get() : null;
+
+                if (existingBar != null && attachedParent == host && existingBar.getParent() == host) {
+                    existingBar.bringToFront();
+                    return; // Already attached to this host
                 }
 
                 if (existingBar != null && existingBar.getParent() instanceof ViewGroup) {
@@ -84,13 +100,34 @@ public final class GboardProofreadButton {
                 params.topMargin = dp(context, 4);
                 params.rightMargin = dp(context, 8);
 
-                container.addView(bar, params);
+                host.addView(bar, params);
+                bar.bringToFront();
+
                 sCurrentBarRef = new WeakReference<>(bar);
+                sAttachedParentRef = new WeakReference<>(host);
 
             } catch (Throwable t) {
                 Log.w(TAG, "Failed to attach quick actions bar", t);
             }
         });
+    }
+
+    /**
+     * Finds the most appropriate keyboard ViewGroup (SoftKeyboardView or KeyboardHolder).
+     */
+    private static ViewGroup findBestKeyboardHost(View view) {
+        if (view instanceof ViewGroup) {
+            // Check if view is SoftKeyboardView or has children
+            ViewGroup vg = (ViewGroup) view;
+            if (vg.getChildCount() > 0 || vg.getClass().getSimpleName().contains("SoftKeyboard")) {
+                return vg;
+            }
+        }
+        if (view.getParent() instanceof ViewGroup) {
+            return (ViewGroup) view.getParent();
+        }
+        View root = view.getRootView();
+        return (root instanceof ViewGroup) ? (ViewGroup) root : null;
     }
 
     /**
@@ -121,12 +158,10 @@ public final class GboardProofreadButton {
             if (existing != null && existing.getParent() instanceof ViewGroup) {
                 ((ViewGroup) existing.getParent()).removeView(existing);
             }
-            if (sCurrentBarRef != null) {
-                sCurrentBarRef.clear();
-            }
-            if (sProofreadButtonRef != null) {
-                sProofreadButtonRef.clear();
-            }
+            if (sCurrentBarRef != null) sCurrentBarRef.clear();
+            if (sProofreadButtonRef != null) sProofreadButtonRef.clear();
+            if (sAutofillButtonRef != null) sAutofillButtonRef.clear();
+            if (sAttachedParentRef != null) sAttachedParentRef.clear();
         });
     }
 
@@ -135,20 +170,27 @@ public final class GboardProofreadButton {
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        bar.setClipChildren(false);
+        bar.setClipToPadding(false);
 
         int surfaceColor = GboardSpacebarIndicatorOverlay.resolveSurfaceColor(context);
         boolean isDark = isColorDark(surfaceColor);
 
-        // 1. Autofill Button: [ 🔑 ]
+        // High contrast colors for pinned buttons
+        int btnBgColor = isDark ? Color.parseColor("#E6282932") : Color.parseColor("#F2FFFFFF");
+        int strokeColor = isDark ? Color.parseColor("#4DFFFFFF") : Color.parseColor("#33000000");
+
+        // 1. Key Button: [ 🔑 ]
         if (autofillEnabled) {
-            View autofillBtn = createAutofillButton(context, keyboardView, surfaceColor, isDark);
+            View autofillBtn = createAutofillButton(context, keyboardView, btnBgColor, strokeColor, isDark);
             bar.addView(autofillBtn);
+            sAutofillButtonRef = new WeakReference<>(autofillBtn);
         }
 
         // 2. Proofread Button: [ ✨ Проверить ]
         if (proofreadEnabled) {
             boolean alwaysVisible = GboardProofreadSettings.isAlwaysVisible(context);
-            View proofreadBtn = createProofreadButton(context, keyboardView, surfaceColor, isDark);
+            View proofreadBtn = createProofreadButton(context, keyboardView, btnBgColor, strokeColor, isDark);
             if (!alwaysVisible) {
                 proofreadBtn.setVisibility(View.GONE);
             }
@@ -166,31 +208,31 @@ public final class GboardProofreadButton {
     }
 
     private static View createAutofillButton(
-            Context context, View keyboardView, int surfaceColor, boolean isDark) {
+            Context context, View keyboardView, int bgColor, int strokeColor, boolean isDark) {
         LinearLayout btn = new LinearLayout(context);
         btn.setOrientation(LinearLayout.HORIZONTAL);
         btn.setGravity(Gravity.CENTER);
         btn.setClickable(true);
         btn.setFocusable(true);
 
-        int padH = dp(context, 8);
+        int padH = dp(context, 10);
         int padV = dp(context, 5);
         btn.setPadding(padH, padV, padH, padV);
 
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setCornerRadius(dp(context, 15));
-        bg.setColor(surfaceColor);
-        bg.setStroke(dp(context, 1), isDark ? Color.parseColor("#33FFFFFF") : Color.parseColor("#1F000000"));
+        bg.setCornerRadius(dp(context, 16));
+        bg.setColor(bgColor);
+        bg.setStroke(dp(context, 1.2f), strokeColor);
         btn.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            btn.setElevation(dp(context, 3));
+            btn.setElevation(dp(context, 5));
         }
 
         TextView keyIcon = new TextView(context);
         keyIcon.setText("🔑");
-        keyIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        keyIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         keyIcon.setGravity(Gravity.CENTER);
         btn.addView(keyIcon);
 
@@ -202,42 +244,46 @@ public final class GboardProofreadButton {
             GboardAutofillService.triggerAutofill(keyboardView);
         });
 
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 32));
+        btn.setLayoutParams(lp);
+
         return btn;
     }
 
     private static View createProofreadButton(
-            Context context, View keyboardView, int surfaceColor, boolean isDark) {
+            Context context, View keyboardView, int bgColor, int strokeColor, boolean isDark) {
         LinearLayout btn = new LinearLayout(context);
         btn.setOrientation(LinearLayout.HORIZONTAL);
         btn.setGravity(Gravity.CENTER);
         btn.setClickable(true);
         btn.setFocusable(true);
 
-        int padH = dp(context, 9);
+        int padH = dp(context, 10);
         int padV = dp(context, 5);
         btn.setPadding(padH, padV, padH, padV);
 
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setCornerRadius(dp(context, 15));
-        bg.setColor(surfaceColor);
-        bg.setStroke(dp(context, 1), isDark ? Color.parseColor("#33FFFFFF") : Color.parseColor("#1F000000"));
+        bg.setCornerRadius(dp(context, 16));
+        bg.setColor(bgColor);
+        bg.setStroke(dp(context, 1.2f), strokeColor);
         btn.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            btn.setElevation(dp(context, 3));
+            btn.setElevation(dp(context, 5));
         }
 
         TextView iconText = new TextView(context);
         iconText.setText("✨");
-        iconText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        iconText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         iconText.setGravity(Gravity.CENTER);
         btn.addView(iconText);
 
         TextView labelText = new TextView(context);
         labelText.setText("Проверить");
         labelText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        labelText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        labelText.setTypeface(Typeface.DEFAULT_BOLD);
         labelText.setTextColor(isDark ? Color.WHITE : Color.parseColor("#1D1B20"));
         labelText.setGravity(Gravity.CENTER);
 
@@ -256,7 +302,7 @@ public final class GboardProofreadButton {
         });
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 32));
         btn.setLayoutParams(lp);
 
         return btn;

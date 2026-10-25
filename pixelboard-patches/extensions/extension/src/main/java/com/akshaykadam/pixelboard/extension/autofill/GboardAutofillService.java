@@ -7,10 +7,13 @@
  */
 package com.akshaykadam.pixelboard.extension.autofill;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.inputmethodservice.InputMethodService;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
@@ -20,8 +23,8 @@ import android.widget.Toast;
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarSwipeRuntime;
 
 /**
- * Service to manually request Autofill from the keyboard when the system autofill popup
- * fails to appear automatically.
+ * Service to invoke the Autofill Manager (e.g. Bitwarden, KeePass, Google Password Manager)
+ * directly from the keyboard.
  */
 public final class GboardAutofillService {
     public static final String TAG = "PixelBoardAutofill";
@@ -48,10 +51,46 @@ public final class GboardAutofillService {
     }
 
     /**
-     * Triggers the Android Autofill framework for the currently focused input view.
+     * Resolves the package name of the active autofill service (e.g. Bitwarden).
+     */
+    public static String getAutofillServicePackage(Context context) {
+        if (context == null) return "com.x8bit.bitwarden";
+        try {
+            String serviceComponent = Settings.Secure.getString(
+                    context.getContentResolver(), "autofill_service");
+            if (serviceComponent != null && !serviceComponent.isEmpty()) {
+                ComponentName cn = ComponentName.unflattenFromString(serviceComponent);
+                if (cn != null && cn.getPackageName() != null && !cn.getPackageName().isEmpty()) {
+                    return cn.getPackageName();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // Fallbacks for known password managers installed on device
+        String[] known = new String[]{
+                "com.x8bit.bitwarden",
+                "com.onepassword.android",
+                "keepass2android.keepass2android",
+                "com.dashlane",
+                "com.nordpass"
+        };
+        for (String pkg : known) {
+            try {
+                if (context.getPackageManager().getLaunchIntentForPackage(pkg) != null) {
+                    return pkg;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return "com.x8bit.bitwarden";
+    }
+
+    /**
+     * Triggers the Android Autofill framework and launches the active password manager (Bitwarden).
      *
      * @param keyboardView the keyboard view
-     * @return true if the autofill request action was performed
+     * @return true if action was triggered
      */
     public static boolean triggerAutofill(View keyboardView) {
         if (keyboardView == null) {
@@ -64,35 +103,41 @@ public final class GboardAutofillService {
         } catch (Throwable ignored) {
         }
 
+        // 1. Dispatch standard Android ContextMenuAction for requesting Autofill on focused view
         InputMethodService ims = GboardSpacebarSwipeRuntime.findInputMethodService(keyboardView);
-        if (ims == null) {
-            logw(TAG, "Cannot find InputMethodService for autofill");
-            showToast(context, "Клавиатура не инициализирована");
-            return false;
+        if (ims != null) {
+            InputConnection ic = ims.getCurrentInputConnection();
+            if (ic != null) {
+                try {
+                    boolean performed = ic.performContextMenuAction(AUTOFILL_CONTEXT_MENU_ID);
+                    logi(TAG, "performContextMenuAction(autofill) result: " + performed);
+                } catch (Throwable t) {
+                    logw(TAG, "Exception during performContextMenuAction(autofill)");
+                }
+            }
         }
 
-        InputConnection ic = ims.getCurrentInputConnection();
-        if (ic == null) {
-            logw(TAG, "Cannot find active InputConnection for autofill");
-            showToast(context, "Поле ввода не активно");
-            return false;
+        // 2. Launch the active password manager (Bitwarden)
+        String autofillPkg = getAutofillServicePackage(context);
+        boolean launched = false;
+        if (autofillPkg != null && !autofillPkg.isEmpty()) {
+            try {
+                Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(autofillPkg);
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    context.startActivity(launchIntent);
+                    launched = true;
+                    String appName = autofillPkg.contains("bitwarden") ? "Bitwarden" : "Менеджер паролей";
+                    showToast(context, "Открытие " + appName + " 🔑");
+                    logi(TAG, "Successfully launched password manager: " + autofillPkg);
+                }
+            } catch (Throwable t) {
+                logw(TAG, "Failed to launch password manager: " + autofillPkg);
+            }
         }
 
-        boolean performed = false;
-        try {
-            // Standard Android ContextMenuAction for requesting Autofill on focused view
-            performed = ic.performContextMenuAction(AUTOFILL_CONTEXT_MENU_ID);
-            logi(TAG, "performContextMenuAction(autofill) result: " + performed);
-        } catch (Throwable t) {
-            logw(TAG, "Exception during performContextMenuAction(autofill)");
-        }
-
-        if (performed) {
+        if (!launched) {
             showToast(context, "Запрос автозаполнения отправлен 🔑");
-        } else {
-            // Even if performContextMenuAction returned false (some custom fields return false even on success),
-            // inform the user that the request was dispatched.
-            showToast(context, "Автозаполнение запрошено 🔑");
         }
 
         return true;
