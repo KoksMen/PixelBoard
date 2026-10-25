@@ -574,8 +574,6 @@ public final class GboardAiWritingToolsRuntime {
         if (packageName != null
                 && (packageName.equals(RENAMED_GBOARD_PACKAGE)
                         || packageName.startsWith(RENAMED_GBOARD_PACKAGE))
-                && GboardAiWritingToolsSettings.BACKEND_GBOARD_SERVER.equals(
-                        settings.backendType)
                 && originalResult instanceof String) {
             if (FLAG_WRITING_HELPER_SERVER_TARGET.equals(flagName)
                     || FLAG_GBOARD_IMAGEN_API_HOST.equals(flagName)) {
@@ -860,6 +858,11 @@ public final class GboardAiWritingToolsRuntime {
             if (!prefs.contains(PREF_KEY_ENABLE_ENTITY_EXTRACTION)) {
                 if (editor == null) editor = prefs.edit();
                 editor.putBoolean(PREF_KEY_ENABLE_ENTITY_EXTRACTION, true);
+            }
+            if (!GboardAiWritingToolsDeviceSupport.isSupportedDevice(
+                    Build.MANUFACTURER, Build.MODEL, Build.DEVICE)) {
+                if (editor == null) editor = prefs.edit();
+                editor.putString(GboardAiWritingToolsSettings.PREF_KEY_BACKEND_TYPE, GboardAiWritingToolsSettings.BACKEND_GBOARD_SERVER);
             }
             if (editor == null) editor = prefs.edit();
             editor.putString(PREF_KEY_JARVIS_CONSENT_HISTORY, "Granted (Form)");

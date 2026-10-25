@@ -25,6 +25,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.akshaykadam.pixelboard.extension.autofill.GboardAutofillService;
 import com.akshaykadam.pixelboard.extension.autofill.GboardAutofillSettings;
@@ -547,7 +548,7 @@ public final class GboardProofreadButton {
             if (isAutofill) {
                 GboardAutofillService.triggerAutofill(keyboardView);
             } else {
-                GboardProofreadService.checkAndShowDiff(keyboardView);
+                triggerWritingTools(keyboardView);
             }
         });
 
@@ -597,20 +598,35 @@ public final class GboardProofreadButton {
                 menuView.performClick();
                 root.postDelayed(() -> {
                     try {
-                        View target = findWritingToolsView(root.getRootView());
+                        View target = findWritingToolsView(root.getRootView() != null ? root.getRootView() : root);
                         if (target != null) {
                             target.performClick();
+                        } else {
+                            // Retry after short delay in case menu animation is still expanding
+                            root.postDelayed(() -> {
+                                try {
+                                    View retryTarget = findWritingToolsView(root.getRootView() != null ? root.getRootView() : root);
+                                    if (retryTarget != null) {
+                                        retryTarget.performClick();
+                                    } else {
+                                        GboardProofreadService.checkAndShowDiff(keyboardView);
+                                    }
+                                } catch (Throwable ignored) {
+                                    GboardProofreadService.checkAndShowDiff(keyboardView);
+                                }
+                            }, 150);
                         }
                     } catch (Throwable ignored) {
+                        GboardProofreadService.checkAndShowDiff(keyboardView);
                     }
-                }, 120);
+                }, 150);
                 return;
             }
         } catch (Throwable t) {
             Log.w(TAG, "Failed to launch native writing tools", t);
         }
 
-        // Fallback: custom Yandex Speller proofread
+        // Fallback: custom proofread
         GboardProofreadService.checkAndShowDiff(keyboardView);
     }
 
@@ -641,10 +657,29 @@ public final class GboardProofreadButton {
             return null;
         }
 
+        if (v instanceof TextView) {
+            CharSequence text = ((TextView) v).getText();
+            if (text != null) {
+                String s = text.toString().toLowerCase(Locale.ROOT);
+                if (s.contains("инструменты редактора") || s.contains("writing tools")
+                        || s.contains("proofread") || s.contains("исправить")
+                        || s.contains("редактор") || s.contains("інструменти редактора")) {
+                    View parent = (View) v.getParent();
+                    if (parent != null && parent.isClickable()) {
+                        return parent;
+                    }
+                    return v;
+                }
+            }
+        }
+
         CharSequence desc = v.getContentDescription();
         if (desc != null) {
             String s = desc.toString().toLowerCase(Locale.ROOT);
-            if (s.contains("инструменты редактора") || s.contains("writing tools") || s.contains("proofread")) {
+            if (s.contains("инструменты редактора") || s.contains("writing tools")
+                    || s.contains("proofread") || s.contains("исправить")
+                    || s.contains("проверить") || s.contains("редактор")
+                    || s.contains("інструменти редактора")) {
                 return v;
             }
         }

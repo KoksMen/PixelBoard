@@ -64,6 +64,13 @@ public final class GboardAiWritingToolsSettings {
             }
             editor.putString(PREF_KEY_BACKEND_TYPE, DEFAULT_BACKEND_TYPE);
         }
+        if (!GboardAiWritingToolsDeviceSupport.isSupportedDevice(
+                android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.DEVICE)) {
+            if (editor == null) {
+                editor = preferences.edit();
+            }
+            editor.putString(PREF_KEY_BACKEND_TYPE, BACKEND_GBOARD_SERVER);
+        }
         if (!preferences.contains(PREF_KEY_V2_ENABLED)) {
             if (editor == null) {
                 editor = preferences.edit();
