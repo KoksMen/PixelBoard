@@ -517,21 +517,24 @@ public final class GboardSpacebarSwipeRuntime {
         return false;
     }
 
+    public static InputMethodService getCurrentInputMethodService() {
+        return sCurrentIms != null ? sCurrentIms.get() : null;
+    }
+
     /**
      * Traverses the Context wrapper hierarchy to find the enclosing InputMethodService.
      */
     public static InputMethodService findInputMethodService(View view) {
-        if (view == null) {
-            return null;
-        }
-        Context context = view.getContext();
-        while (context instanceof ContextWrapper) {
-            if (context instanceof InputMethodService) {
-                return (InputMethodService) context;
+        if (view != null) {
+            Context context = view.getContext();
+            while (context instanceof ContextWrapper) {
+                if (context instanceof InputMethodService) {
+                    return (InputMethodService) context;
+                }
+                context = ((ContextWrapper) context).getBaseContext();
             }
-            context = ((ContextWrapper) context).getBaseContext();
         }
-        return null;
+        return getCurrentInputMethodService();
     }
 
     private static void performHapticFeedback(View view) {

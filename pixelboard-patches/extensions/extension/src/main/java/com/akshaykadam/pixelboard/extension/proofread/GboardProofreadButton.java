@@ -195,13 +195,49 @@ public final class GboardProofreadButton {
                     ((ViewGroup) existingBar.getParent()).removeView(existingBar);
                 }
 
+                boolean positionLeft = GboardProofreadSettings.isPositionLeft(context);
                 LinearLayout bar = createBar(context, keyboardView, proofreadEnabled, autofillEnabled);
                 if (bar == null) return;
 
+                String pkg = context.getPackageName();
+                int micId = host.getResources().getIdentifier("key_pos_header_power_key", "id", pkg);
+                View micView = micId != 0 ? host.findViewById(micId) : null;
+
+                int menuId = host.getResources().getIdentifier("key_pos_header_access_points_menu", "id", pkg);
+                View menuView = menuId != 0 ? host.findViewById(menuId) : null;
+
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                params.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
-                params.rightMargin = dp(context, 4);
+                params.gravity = Gravity.CENTER_VERTICAL;
+
+                int numButtons = (autofillEnabled ? 1 : 0) + (proofreadEnabled ? 1 : 0);
+                int barWidth = numButtons * dp(context, 38) + (numButtons > 1 ? dp(context, 4) : 0);
+
+                if (positionLeft) {
+                    params.gravity |= Gravity.START;
+                    int leftOffset = (menuView != null && menuView.getWidth() > 0)
+                            ? (menuView.getRight() + dp(context, 4))
+                            : dp(context, 48);
+                    params.leftMargin = leftOffset;
+                    params.rightMargin = 0;
+                } else {
+                    params.gravity |= Gravity.END;
+                    int micSpace = dp(context, 44);
+                    if (micView != null && micView.getVisibility() == View.VISIBLE) {
+                        int micW = micView.getWidth();
+                        int hostW = host.getWidth();
+                        if (hostW > 0 && micView.getLeft() > 0) {
+                            micSpace = hostW - micView.getLeft();
+                        } else if (micW > 0) {
+                            micSpace = micW;
+                        }
+                    }
+                    params.rightMargin = micSpace + dp(context, 2);
+                    params.leftMargin = 0;
+                }
+
+                // Adjust middle bar padding so word suggestions and stickers never collide with the buttons
+                adjustMiddleBarPadding(host, pkg, positionLeft, barWidth, context);
 
                 host.addView(bar, params);
                 bar.bringToFront();
@@ -304,11 +340,35 @@ public final class GboardProofreadButton {
         });
     }
 
+    private static void adjustMiddleBarPadding(ViewGroup host, String pkg, boolean positionLeft, int barWidth, Context context) {
+        if (host == null || barWidth <= 0) return;
+        try {
+            int middleBarId = host.getResources().getIdentifier("id_0x7f0b03ab", "id", pkg);
+            View middleBar = middleBarId != 0 ? host.findViewById(middleBarId) : null;
+            if (middleBar == null) {
+                int candId = host.getResources().getIdentifier("softkey_holder_fixed_candidates", "id", pkg);
+                View cand = candId != 0 ? host.findViewById(candId) : null;
+                if (cand != null && cand.getParent() instanceof View) {
+                    middleBar = (View) cand.getParent();
+                }
+            }
+            if (middleBar != null) {
+                int extraPad = barWidth + dp(context, 4);
+                if (positionLeft) {
+                    middleBar.setPadding(extraPad, middleBar.getPaddingTop(), 0, middleBar.getPaddingBottom());
+                } else {
+                    middleBar.setPadding(0, middleBar.getPaddingTop(), extraPad, middleBar.getPaddingBottom());
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static LinearLayout createBar(
             Context context, View keyboardView, boolean proofreadEnabled, boolean autofillEnabled) {
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setClipChildren(false);
         bar.setClipToPadding(false);
 
@@ -321,28 +381,46 @@ public final class GboardProofreadButton {
         // Subtle circular touch target background
         int touchBgColor = isDark ? Color.parseColor("#1FFFFFFF") : Color.parseColor("#14000000");
 
-        // 1. Key Button: [ 🔑 ] native toolbar icon button
+        boolean sparkleFirst = GboardProofreadSettings.isOrderSparkleFirst(context);
+
+        View firstBtn = null;
+        View secondBtn = null;
+
+        View autofillBtn = null;
         if (autofillEnabled) {
-            View autofillBtn = createToolbarIconButton(context, keyboardView, new KeyIconView(context), iconColor, touchBgColor, true);
-            bar.addView(autofillBtn);
+            autofillBtn = createToolbarIconButton(context, keyboardView, new KeyIconView(context), iconColor, touchBgColor, true);
             sAutofillButtonRef = new WeakReference<>(autofillBtn);
         }
 
-        // 2. Proofread Button: [ ✨ ] native toolbar icon button
+        View proofreadBtn = null;
         if (proofreadEnabled) {
             boolean alwaysVisible = GboardProofreadSettings.isAlwaysVisible(context);
-            View proofreadBtn = createToolbarIconButton(context, keyboardView, new SparkleIconView(context), iconColor, touchBgColor, false);
+            proofreadBtn = createToolbarIconButton(context, keyboardView, new SparkleIconView(context), iconColor, touchBgColor, false);
             if (!alwaysVisible) {
                 proofreadBtn.setVisibility(View.GONE);
             }
-            if (autofillEnabled) {
-                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) proofreadBtn.getLayoutParams();
+            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
+        }
+
+        if (sparkleFirst) {
+            firstBtn = proofreadBtn;
+            secondBtn = autofillBtn;
+        } else {
+            firstBtn = autofillBtn;
+            secondBtn = proofreadBtn;
+        }
+
+        if (firstBtn != null) {
+            bar.addView(firstBtn);
+        }
+        if (secondBtn != null) {
+            if (firstBtn != null) {
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) secondBtn.getLayoutParams();
                 if (lp != null) {
-                    lp.leftMargin = dp(context, 2);
+                    lp.leftMargin = dp(context, 4);
                 }
             }
-            bar.addView(proofreadBtn);
-            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
+            bar.addView(secondBtn);
         }
 
         return bar;

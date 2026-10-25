@@ -7,16 +7,19 @@
  */
 package com.akshaykadam.pixelboard.extension.autofill;
 
+import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.inputmethodservice.InputMethodService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.autofill.AutofillManager;
 import android.view.inputmethod.InputConnection;
 import android.widget.Toast;
 
@@ -105,6 +108,10 @@ public final class GboardAutofillService {
 
         // 1. Dispatch standard Android ContextMenuAction for requesting Autofill on focused view
         InputMethodService ims = GboardSpacebarSwipeRuntime.findInputMethodService(keyboardView);
+        if (ims == null) {
+            ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+        }
+
         if (ims != null) {
             InputConnection ic = ims.getCurrentInputConnection();
             if (ic != null) {
@@ -117,19 +124,38 @@ public final class GboardAutofillService {
             }
         }
 
-        // 2. Launch the active password manager (Bitwarden)
+        // 2. Also trigger requestAutofill via AutofillManager if available
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AutofillManager afm = (AutofillManager) context.getSystemService("autofill");
+                if (afm != null) {
+                    afm.requestAutofill(keyboardView);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // 3. Forcibly launch the active password manager (e.g. Bitwarden)
         String autofillPkg = getAutofillServicePackage(context);
         boolean launched = false;
         if (autofillPkg != null && !autofillPkg.isEmpty()) {
             try {
                 Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(autofillPkg);
                 if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    context.startActivity(launchIntent);
-                    launched = true;
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                    try {
+                        PendingIntent pi = PendingIntent.getActivity(
+                                context, 1001, launchIntent,
+                                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                        pi.send();
+                        launched = true;
+                    } catch (Throwable t) {
+                        context.startActivity(launchIntent);
+                        launched = true;
+                    }
                     String appName = autofillPkg.contains("bitwarden") ? "Bitwarden" : "Менеджер паролей";
                     showToast(context, "Открытие " + appName + " 🔑");
-                    logi(TAG, "Successfully launched password manager: " + autofillPkg);
+                    logi(TAG, "Successfully launched password manager via PendingIntent: " + autofillPkg);
                 }
             } catch (Throwable t) {
                 logw(TAG, "Failed to launch password manager: " + autofillPkg);

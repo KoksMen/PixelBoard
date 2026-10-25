@@ -239,6 +239,124 @@ with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/autofill/Gboar
     f.write(autofill_action_smali)
 print("Updated GboardAutofillToggleAction.smali with try/catch")
 
+# 1.4 Create GboardToolbarPositionToggleAction.smali
+toolbar_pos_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;
+.super Ljava/lang/Object;
+.source "GboardToolbarPositionToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writePositionLeft(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardProofread"
+    const-string v2, "Failed to toggle toolbar position setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(toolbar_pos_action_smali)
+print("Created GboardToolbarPositionToggleAction.smali")
+
+# 1.5 Create GboardToolbarOrderToggleAction.smali
+toolbar_order_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;
+.super Ljava/lang/Object;
+.source "GboardToolbarOrderToggleAction.java"
+
+# interfaces
+.implements Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final accept(Z)V
+    .registers 5
+
+    :try_start_0
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;->preferences:Landroid/content/SharedPreferences;
+
+    if-eqz v0, :cond_0
+
+    invoke-static {v0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->writeOrderSparkleFirst(Landroid/content/SharedPreferences;Z)Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
+
+    :cond_0
+    return-void
+
+    :catch_0
+    move-exception v0
+    const-string v1, "PixelBoardProofread"
+    const-string v2, "Failed to toggle toolbar order setting"
+    invoke-static {v1, v2, v0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+.end method
+"""
+
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction.smali", "w", encoding="utf-8") as f:
+    f.write(toolbar_order_action_smali)
+print("Created GboardToolbarOrderToggleAction.smali")
+
 # 2. Update GboardPatchesSettingsActivity.smali with literal strings and toggle rows
 settings_activity_path = "_decompiled/smali/com/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity.smali"
 with open(settings_activity_path, "r", encoding="utf-8") as f:
@@ -366,6 +484,71 @@ if "GboardAutofillToggleAction" not in content_norm:
             print("Added GboardProofreadAlwaysVisible and GboardAutofill rows to GboardPatchesSettingsActivity")
 else:
     print("Extra rows already present or anchor not found")
+
+position_and_order_rows_smali = """
+    # Toolbar position toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\\u041a\\u043d\\u043e\\u043f\\u043a\\u0438 \\u043f\\u0430\\u043d\\u0435\\u043b\\u0438: \\u0441\\u043b\\u0435\\u0432\\u0430 (\\u0443 \\u043c\\u0435\\u043d\\u044e ::)"
+
+    const-string v18, "\\u0415\\u0441\\u043b\\u0438 \\u0432\\u043a\\u043b\\u044e\\u0447\\u0435\\u043d\\u043e, \\u043a\\u043d\\u043e\\u043f\\u043a\\u0438 \\ud83d\\udd11 \\u0438 \\u2728 \\u0431\\u0443\\u0434\\u0443\\u0442 \\u0441\\u043b\\u0435\\u0432\\u0430 \\u0440\\u044f\\u0434\\u043e\\u043c \\u0441 \\u043c\\u0435\\u043d\\u044e ::, \\u0438\\u043d\\u0430\\u0447\\u0435 \\u2014 \\u0441\\u043f\\u0440\\u0430\\u0432\\u0430 \\u043f\\u0435\\u0440\\u0435\\u0434 \\u043c\\u0438\\u043a\\u0440\\u043e\\u0444\\u043e\\u043d\\u043e\\u043c"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readPositionLeft(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarPositionToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    # Toolbar order toggle row
+    new-instance v16, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;
+
+    const-string v17, "\\u041f\\u043e\\u0440\\u044f\\u0434\\u043e\\u043a \\u043a\\u043d\\u043e\\u043f\\u043e\\u043a: [\\u2728] \\u0437\\u0430\\u0442\\u0435\\u043c [\\ud83d\\udd11]"
+
+    const-string v18, "\\u0415\\u0441\\u043b\\u0438 \\u0432\\u043a\\u043b\\u044e\\u0447\\u0435\\u043d\\u043e \\u2014 [\\u2728][\\ud83d\\udd11], \\u0438\\u043d\\u0430\\u0447\\u0435 \\u2014 [\\ud83d\\udd11][\\u2728]"
+
+    const/16 v19, 0x1
+
+    invoke-static {v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadSettings;->readOrderSparkleFirst(Landroid/content/SharedPreferences;)Z
+
+    move-result v20
+
+    new-instance v2, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;
+
+    invoke-direct {v2, v0, v3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardToolbarOrderToggleAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    move-object/from16 v21, v2
+
+    invoke-direct/range {v16 .. v21}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$ToggleAction;)V
+
+    move-object/from16 v2, v16
+
+    invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"""
+
+if "GboardToolbarPositionToggleAction" not in content_norm:
+    idx_autofill = content_norm.find("GboardAutofillToggleAction")
+    if idx_autofill != -1:
+        target_add = "invoke-interface {v5, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"
+        idx_add = content_norm.find(target_add, idx_autofill)
+        if idx_add != -1:
+            insert_pos = idx_add + len(target_add)
+            content_norm = content_norm[:insert_pos] + "\n" + position_and_order_rows_smali + content_norm[insert_pos:]
+            with open(settings_activity_path, "w", encoding="utf-8") as f:
+                f.write(content_norm)
+            print("Added ToolbarPosition and ToolbarOrder rows to GboardPatchesSettingsActivity")
+else:
+    print("ToolbarPosition rows already present")
 
 # 3. Clean hook for SoftKeyboardView.smali
 skv_path = "_decompiled/smali_classes2/com/google/android/libraries/inputmethod/widgets/SoftKeyboardView.smali"

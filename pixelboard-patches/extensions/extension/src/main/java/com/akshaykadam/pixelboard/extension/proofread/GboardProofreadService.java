@@ -150,9 +150,14 @@ public final class GboardProofreadService {
 
         InputMethodService ims = GboardSpacebarSwipeRuntime.findInputMethodService(keyboardView);
         if (ims == null) {
+            ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+        }
+        if (ims == null) {
             logw(TAG, "Cannot find InputMethodService for proofread");
             return;
         }
+
+        final InputMethodService finalIms = ims;
 
         InputConnection ic = ims.getCurrentInputConnection();
         if (ic == null) {
@@ -195,7 +200,7 @@ public final class GboardProofreadService {
         sExecutor.execute(() -> {
             ProofreadResult result = checkTextInternal(textToCheck, wasSelected, beforeLen, afterLen);
             getMainHandler().post(() -> {
-                GboardProofreadOverlay.showResult(keyboardView, ims, result);
+                GboardProofreadOverlay.showResult(keyboardView, finalIms, result);
             });
         });
     }
@@ -491,6 +496,8 @@ public final class GboardProofreadService {
         if (ims == null || result == null || result.correctedText == null) {
             return false;
         }
+        final InputMethodService finalIms = ims;
+
         InputConnection ic = ims.getCurrentInputConnection();
         if (ic == null) {
             return false;
