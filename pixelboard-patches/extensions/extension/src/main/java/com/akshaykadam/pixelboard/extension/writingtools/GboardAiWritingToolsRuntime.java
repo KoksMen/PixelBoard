@@ -1,6 +1,7 @@
 package com.akshaykadam.pixelboard.extension.writingtools;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
 
 import com.akshaykadam.pixelboard.extension.settings.GboardRoundedKeysSettings;
@@ -621,8 +622,7 @@ public final class GboardAiWritingToolsRuntime {
         }
 
         if (FLAG_ENABLE_WRITING_TOOLS_V2.equals(flagName)
-                || FLAG_ENABLE_WRITING_TOOLS_V2_ON_TOOLBAR.equals(flagName)
-                || FLAG_ENABLE_WRITING_TOOLS_SUGGEST_STYLE.equals(flagName)
+                                || FLAG_ENABLE_WRITING_TOOLS_SUGGEST_STYLE.equals(flagName)
                 || FLAG_WRITING_TOOLS_V2.equals(flagName)
                 || FLAG_WRITING_TOOLS_V2_ENABLE_SUGGESTED_INSTRUCTIONS.equals(flagName)
                 || FLAG_WRITING_TOOLS_V2_ENABLE_SUGGESTED_INSTRUCTIONS_IN_DRAFT.equals(flagName)
@@ -646,11 +646,20 @@ public final class GboardAiWritingToolsRuntime {
     }
 
     static BackendDecision backendDecision(String backendType) {
+        boolean eligibleForNpu = GboardAiWritingToolsDeviceSupport.isSupportedDevice(
+                Build.MANUFACTURER, Build.MODEL, Build.DEVICE);
+
         if (GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backendType)) {
-            return new BackendDecision(Long.valueOf(2L), Boolean.TRUE, Boolean.TRUE);
+            if (eligibleForNpu) {
+                return new BackendDecision(Long.valueOf(2L), Boolean.TRUE, Boolean.TRUE);
+            }
+            return new BackendDecision(Long.valueOf(1L), Boolean.FALSE, Boolean.FALSE);
         }
         if (GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backendType)) {
-            return new BackendDecision(Long.valueOf(3L), Boolean.TRUE, Boolean.FALSE);
+            if (eligibleForNpu) {
+                return new BackendDecision(Long.valueOf(3L), Boolean.TRUE, Boolean.FALSE);
+            }
+            return new BackendDecision(Long.valueOf(1L), Boolean.FALSE, Boolean.FALSE);
         }
         return new BackendDecision(Long.valueOf(1L), Boolean.FALSE, Boolean.FALSE);
     }
@@ -852,26 +861,15 @@ public final class GboardAiWritingToolsRuntime {
                 if (editor == null) editor = prefs.edit();
                 editor.putBoolean(PREF_KEY_ENABLE_ENTITY_EXTRACTION, true);
             }
-            if (!prefs.contains(PREF_KEY_JARVIS_CONSENT_HISTORY)) {
-                if (editor == null) editor = prefs.edit();
-                editor.putString(PREF_KEY_JARVIS_CONSENT_HISTORY, "Granted (Form)");
-            }
-            if (!prefs.contains(PREF_KEY_WRITING_TOOLS_OPT_IN)) {
-                if (editor == null) editor = prefs.edit();
-                editor.putBoolean(PREF_KEY_WRITING_TOOLS_OPT_IN, true);
-            }
-            if (!prefs.contains(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN)) {
-                if (editor == null) editor = prefs.edit();
-                editor.putBoolean(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN, true);
-            }
-            if (!prefs.contains(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN_V1)) {
-                if (editor == null) editor = prefs.edit();
-                editor.putBoolean(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN_V1, true);
-            }
-            if (!prefs.contains(PREF_KEY_WRITING_TOOLS_ENABLE_PI_OVERRIDE)) {
-                if (editor == null) editor = prefs.edit();
-                editor.putBoolean(PREF_KEY_WRITING_TOOLS_ENABLE_PI_OVERRIDE, true);
-            }
+            if (editor == null) editor = prefs.edit();
+            editor.putString(PREF_KEY_JARVIS_CONSENT_HISTORY, "Granted (Form)");
+            editor.putBoolean("pref_key_jarvis_eligible", true);
+            editor.putBoolean("pref_key_jarvis_opt_in", true);
+            editor.putBoolean("pref_key_jarvis_opt_in_shown", true);
+            editor.putBoolean(PREF_KEY_WRITING_TOOLS_OPT_IN, true);
+            editor.putBoolean(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN, true);
+            editor.putBoolean(PREF_KEY_WRITING_TOOLS_SCREEN_CONTEXT_OPT_IN_V1, true);
+            editor.putBoolean(PREF_KEY_WRITING_TOOLS_ENABLE_PI_OVERRIDE, true);
             if (editor != null) {
                 editor.apply();
             }
