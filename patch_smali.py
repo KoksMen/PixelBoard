@@ -1405,3 +1405,42 @@ if os.path.exists(hjk_path):
         print("Hooked toolbar Jarvis click in hjk.smali")
     else:
         print("hjk.smali hook already present or not matched")
+
+# 8. Hook hrz.smali (JarvisPromptExtension.t) to intercept Google Jarvis UI when opened from the 4-squares menu
+hrz_path = "_decompiled/smali_classes2/hrz.smali"
+if os.path.exists(hrz_path):
+    with open(hrz_path, "r", encoding="utf-8") as f:
+        hrz_content = f.read()
+
+    hrz_norm = hrz_content.replace("\r\n", "\n")
+
+    target_hrz_t = """.method protected final t(Ljava/util/Map;Lobf;)V
+    .locals 21
+
+    .line 1
+    move-object/from16 v0, p0"""
+
+    replacement_hrz_t = """.method protected final t(Ljava/util/Map;Lobf;)V
+    .locals 21
+
+    move-object/from16 v0, p0
+
+    invoke-static {v0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onJarvisClicked(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_pixelboard_t_normal
+
+    return-void
+
+    :cond_pixelboard_t_normal
+    .line 1
+    move-object/from16 v0, p0"""
+
+    if "GboardProofreadService;->onJarvisClicked" not in hrz_norm and target_hrz_t in hrz_norm:
+        hrz_norm = hrz_norm.replace(target_hrz_t, replacement_hrz_t, 1)
+        with open(hrz_path, "w", encoding="utf-8") as f:
+            f.write(hrz_norm)
+        print("Hooked JarvisPromptExtension.t in hrz.smali")
+    else:
+        print("hrz.smali t hook already present or not matched")

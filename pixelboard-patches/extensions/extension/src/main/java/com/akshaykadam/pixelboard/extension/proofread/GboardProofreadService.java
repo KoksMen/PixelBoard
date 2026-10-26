@@ -153,7 +153,17 @@ public final class GboardProofreadService {
             View targetView = GboardProofreadButton.getAttachedParent();
             if (targetView == null && caller != null) {
                 try {
-                    Object obr = caller.getClass().getMethod("ah").invoke(caller);
+                    Object obr = null;
+                    try {
+                        obr = caller.getClass().getMethod("ah").invoke(caller);
+                    } catch (Throwable ignored) {
+                    }
+                    if (obr == null) {
+                        try {
+                            obr = caller.getClass().getMethod("aa").invoke(caller);
+                        } catch (Throwable ignored) {
+                        }
+                    }
                     if (obr != null) {
                         Object view = obr.getClass().getMethod("l").invoke(obr);
                         if (view instanceof View) {
@@ -537,11 +547,17 @@ public final class GboardProofreadService {
                 "во-первых", "во-вторых", "в-третьих", "следовательно", "таким образом"
         };
         for (String iw : introWords) {
-            // At start of sentence
-            res = res.replaceAll("(?i)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?!\\s*[,:])", "$1$2,");
-            // In middle of sentence
-            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?!\\s*[,:])", "$1, $2,");
+            // At start of sentence, followed by words
+            res = res.replaceAll("(?i)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
+            // In middle of sentence, followed by words
+            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
+            // At end of sentence or before punctuation: comma only before the introductory word, never after!
+            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
         }
+
+        // Idioms that must NOT have commas
+        res = res.replaceAll("(?i),\\s*не\\s+за,\\s*что\\b", " не за что");
+        res = res.replaceAll("(?i)\\bне\\s+за,\\s*что\\b", "не за что");
 
         // 6. Typographic spacing and punctuation cleanup
         res = res.replaceAll("[ \\t]{2,}", " ");
@@ -549,6 +565,8 @@ public final class GboardProofreadService {
         res = res.replaceAll(",\\s*,", ",");
         res = res.replaceAll(",\\s*([.!?])", "$1");
         res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z])", "$1 $2");
+        res = res.replaceAll(",\\s*$", "");
+        res = res.replaceAll(",\\s*\\n", "\\n");
 
         // 7. Capitalize first letter of each sentence
         StringBuilder capitalized = new StringBuilder();
@@ -675,14 +693,118 @@ public final class GboardProofreadService {
                 ic.finishComposingText();
             } catch (Throwable ignored) {
             }
+
+            String orig = result.originalText;
+            String corr = result.correctedText;
+
+            // Check if there is an active selection in the editor right now
+            CharSequence currentSel = ic.getSelectedText(0);
+            if (currentSel != null && currentSel.length() > 0 && currentSel.toString().equals(orig)) {
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logi(TAG, "Applied correction via active selection: " + corr);
+                return true;
+            }
+
+            // Otherwise, inspect what is currently in the editor around cursor
+            CharSequence beforeCs = ic.getTextBeforeCursor(2000, 0);
+            CharSequence afterCs = ic.getTextAfterCursor(1000, 0);
+            String before = beforeCs != null ? beforeCs.toString() : "";
+            String after = afterCs != null ? afterCs.toString() : "";
+
+            // Case 1: Cursor is right after originalText (standard typing at end of input)
+            if (before.endsWith(orig)) {
+                ic.deleteSurroundingText(orig.length(), 0);
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logi(TAG, "Applied correction via before.endsWith: " + corr);
+                return true;
+            }
+
+            // Case 2: Cursor is right before originalText
+            if (after.startsWith(orig)) {
+                ic.deleteSurroundingText(0, orig.length());
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logi(TAG, "Applied correction via after.startsWith: " + corr);
+                return true;
+            }
+
+            // Case 3: Cursor is inside originalText
+            boolean matchedInside = false;
+            for (int k = 1; k < orig.length(); k++) {
+                String prefix = orig.substring(0, k);
+                String suffix = orig.substring(k);
+                if (before.endsWith(prefix) && after.startsWith(suffix)) {
+                    ic.deleteSurroundingText(prefix.length(), suffix.length());
+                    ic.commitText(corr, 1);
+                    matchedInside = true;
+                    logi(TAG, "Applied correction via split match: " + corr);
+                    break;
+                }
+            }
+            if (matchedInside) {
+                ic.endBatchEdit();
+                return true;
+            }
+
+            // Case 4: Trimmed match (if whitespace slightly desynced)
+            String origTrim = orig.trim();
+            String corrTrim = corr.trim();
+            if (!origTrim.isEmpty()) {
+                if (before.endsWith(origTrim)) {
+                    ic.deleteSurroundingText(origTrim.length(), 0);
+                    ic.commitText(corrTrim, 1);
+                    ic.endBatchEdit();
+                    logi(TAG, "Applied correction via trimmed before.endsWith: " + corrTrim);
+                    return true;
+                }
+                if (after.startsWith(origTrim)) {
+                    ic.deleteSurroundingText(0, origTrim.length());
+                    ic.commitText(corrTrim, 1);
+                    ic.endBatchEdit();
+                    logi(TAG, "Applied correction via trimmed after.startsWith: " + corrTrim);
+                    return true;
+                }
+                for (int k = 1; k < origTrim.length(); k++) {
+                    String prefix = origTrim.substring(0, k);
+                    String suffix = origTrim.substring(k);
+                    if (before.endsWith(prefix) && after.startsWith(suffix)) {
+                        ic.deleteSurroundingText(prefix.length(), suffix.length());
+                        ic.commitText(corrTrim, 1);
+                        matchedInside = true;
+                        logi(TAG, "Applied correction via trimmed split match: " + corrTrim);
+                        break;
+                    }
+                }
+                if (matchedInside) {
+                    ic.endBatchEdit();
+                    return true;
+                }
+            }
+
+            // Case 5: Word-level search in before if cursor slightly shifted
+            int idxInBefore = before.lastIndexOf(orig);
+            if (idxInBefore >= 0) {
+                int charsAfterOrig = before.length() - (idxInBefore + orig.length());
+                if (charsAfterOrig <= 20) {
+                    ic.deleteSurroundingText(charsAfterOrig + orig.length(), 0);
+                    ic.commitText(corr + before.substring(idxInBefore + orig.length()), 1);
+                    ic.endBatchEdit();
+                    logi(TAG, "Applied correction via near-cursor index search");
+                    return true;
+                }
+            }
+
+            // Fallback: stored lengths
             if (result.wasSelected) {
-                ic.commitText(result.correctedText, 1);
+                ic.commitText(corr, 1);
             } else {
                 ic.deleteSurroundingText(result.beforeLength, result.afterLength);
-                ic.commitText(result.correctedText, 1);
+                ic.commitText(corr, 1);
             }
             ic.endBatchEdit();
-            logi(TAG, "Successfully applied proofread correction: " + result.correctedText);
+            logi(TAG, "Applied correction via fallback: " + corr);
             return true;
         } catch (Throwable t) {
             logw(TAG, "Failed to apply correction to InputConnection", t);
