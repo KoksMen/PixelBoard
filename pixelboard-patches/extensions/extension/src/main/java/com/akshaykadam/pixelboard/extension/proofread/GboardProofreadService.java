@@ -184,6 +184,23 @@ public final class GboardProofreadService {
 
             if (targetView != null) {
                 Context context = targetView.getContext();
+                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
+                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
+
+                // If backend is Yandex, intercept Jarvis to run Yandex Speller + Git Diff:
+                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_YANDEX.equals(backend)) {
+                    final View finalView = targetView;
+                    getMainHandler().post(() -> checkAndShowDiff(finalView));
+                    return true;
+                }
+
+                // If user selected AICore, Astrea, or Google Cloud Server, allow native Gboard Writing Tools to handle it!
+                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_GBOARD_SERVER.equals(backend)) {
+                    return false;
+                }
+
                 if (GboardProofreadSettings.isEnabled(context)) {
                     final View finalView = targetView;
                     getMainHandler().post(() -> checkAndShowDiff(finalView));

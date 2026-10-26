@@ -17,6 +17,7 @@ public final class GboardAiWritingToolsSettings {
             "PRIVATE_INFERENCE_AICORE";
     public static final String BACKEND_PRIVATE_INFERENCE_ASTREA =
             "PRIVATE_INFERENCE_ASTREA";
+    public static final String BACKEND_YANDEX = "YANDEX";
     public static final boolean DEFAULT_ENABLED = true;
     public static final boolean DEFAULT_ALL_KEYBOARDS = true;
     public static final boolean DEFAULT_V2_ENABLED = true;
@@ -64,13 +65,7 @@ public final class GboardAiWritingToolsSettings {
             }
             editor.putString(PREF_KEY_BACKEND_TYPE, DEFAULT_BACKEND_TYPE);
         }
-        if (!GboardAiWritingToolsDeviceSupport.isSupportedDevice(
-                android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.DEVICE)) {
-            if (editor == null) {
-                editor = preferences.edit();
-            }
-            editor.putString(PREF_KEY_BACKEND_TYPE, BACKEND_GBOARD_SERVER);
-        }
+        // Device check removed in PixelBoard mod: user's chosen backend (AICore, Astrea, Yandex) is permanently preserved without resetting to online
         if (!preferences.contains(PREF_KEY_V2_ENABLED)) {
             if (editor == null) {
                 editor = preferences.edit();
@@ -182,7 +177,8 @@ public final class GboardAiWritingToolsSettings {
 
     public static String sanitizeBackendType(String backendType) {
         if (BACKEND_PRIVATE_INFERENCE_AICORE.equals(backendType)
-                || BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backendType)) {
+                || BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backendType)
+                || BACKEND_YANDEX.equals(backendType)) {
             return backendType;
         }
         return BACKEND_GBOARD_SERVER;

@@ -83,40 +83,8 @@ public final class GboardAiWritingToolsDeviceSupport {
         if (forcedDeviceSupportForTesting != null) {
             return forcedDeviceSupportForTesting.booleanValue();
         }
-        if (manufacturer == null && model == null && device == null) {
-            // Running in host JVM unit test environment
-            return true;
-        }
-        if (device != null) {
-            String lowerDevice = device.trim().toLowerCase(Locale.US);
-            if (KNOWN_SUPPORTED_DEVICES.contains(lowerDevice)) {
-                return true;
-            }
-        }
-
-        if (model != null) {
-            String trimmedModel = model.trim();
-            // Pixel 8 Pro has 12GB RAM and is officially supported for AICore / Gemini Nano
-            // (Standard Pixel 8 'shiba' and 8a 'akita' only have 8GB RAM).
-            if (trimmedModel.equalsIgnoreCase("Pixel 8 Pro")
-                    || trimmedModel.toLowerCase(Locale.US).startsWith("pixel 8 pro")) {
-                return true;
-            }
-
-            // Pixel 9, Pixel 9 Pro, Pixel 9 Pro XL, Pixel 9 Pro Fold, Pixel 10 Pro, etc.
-            Matcher matcher = PIXEL_NUMBER_PATTERN.matcher(trimmedModel);
-            if (matcher.matches()) {
-                try {
-                    int generation = Integer.parseInt(matcher.group(1));
-                    if (generation >= 9) {
-                        return true;
-                    }
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-
-        return false;
+        // PixelBoard enables AICore and on-device writing tools unconditionally on all devices
+        return true;
     }
 
     /**

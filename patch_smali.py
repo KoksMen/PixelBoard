@@ -1218,3 +1218,129 @@ if os.path.exists(hom_path):
         print("Hooked Jarvis click in hom.smali")
     else:
         print("Jarvis hook in hom.smali already present or not matched")
+
+# 6. Create GboardSetYandexBackendAction.smali
+yandex_action_smali = """\
+.class public final Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;
+.super Ljava/lang/Object;
+.source "GboardSetYandexBackendAction.java"
+
+# interfaces
+.implements Ljava/lang/Runnable;
+
+
+# instance fields
+.field public final activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+.field public final preferences:Landroid/content/SharedPreferences;
+
+
+# direct methods
+.method public constructor <init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .registers 3
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iput-object p2, p0, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;->preferences:Landroid/content/SharedPreferences;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final run()V
+    .registers 3
+
+    iget-object v0, p0, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;->activity:Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;
+
+    iget-object v1, p0, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;->preferences:Landroid/content/SharedPreferences;
+
+    invoke-static {v0, v1}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;->setBackendYandex(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    return-void
+.end method
+"""
+
+os.makedirs("_decompiled/smali/com/akshaykadam/pixelboard/extension/settings", exist_ok=True)
+with open("_decompiled/smali/com/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction.smali", "w", encoding="utf-8") as f:
+    f.write(yandex_action_smali)
+print("Created GboardSetYandexBackendAction.smali")
+
+# 7. Add setBackendYandex method and Yandex RadioRow to GboardPatchesSettingsActivity.smali
+with open(settings_activity_path, "r", encoding="utf-8") as f:
+    act_content = f.read()
+
+act_norm = act_content.replace("\r\n", "\n")
+
+# 7.1 Add setBackendYandex helper method if not present
+set_backend_yandex_smali = """
+.method public static setBackendYandex(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+    .locals 1
+
+    if-eqz p1, :cond_0
+
+    const-string v0, "YANDEX"
+
+    invoke-static {p1, v0}, Lcom/akshaykadam/pixelboard/extension/writingtools/GboardAiWritingToolsSettings;->writeBackendType(Landroid/content/SharedPreferences;Ljava/lang/String;)Z
+
+    if-eqz p0, :cond_0
+
+    invoke-direct {p0}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;->renderCurrentScreenSafely()V
+
+    :cond_0
+    return-void
+.end method
+"""
+
+if ".method public static setBackendYandex" not in act_norm:
+    act_norm += set_backend_yandex_smali
+    print("Added setBackendYandex to GboardPatchesSettingsActivity")
+
+# 7.2 Inject Yandex Speller RadioRow
+backend_list_anchor = """    :goto_8
+    new-instance v5, Ljava/util/ArrayList;
+
+    invoke-direct {v5}, Ljava/util/ArrayList;-><init>()V"""
+
+yandex_radiorow_smali = """    :goto_8
+    new-instance v5, Ljava/util/ArrayList;
+
+    invoke-direct {v5}, Ljava/util/ArrayList;-><init>()V
+
+    # Yandex Speller RadioRow
+    new-instance v7, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$RadioRow;
+
+    const-string v3, "YANDEX"
+
+    invoke-virtual {v3, v4}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v11
+
+    new-instance v12, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;
+
+    invoke-direct {v12, v0, v1}, Lcom/akshaykadam/pixelboard/extension/settings/GboardSetYandexBackendAction;-><init>(Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;Landroid/content/SharedPreferences;)V
+
+    invoke-direct {v0, v3}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsActivity;->createBackendIcon(Ljava/lang/String;)Landroid/graphics/drawable/Drawable;
+
+    move-result-object v13
+
+    const-string v8, "Yandex Speller (\\u042f\\u043d\\u0434\\u0435\\u043a\\u0441.\\u0421\\u043f\\u0435\\u043b\\u043b\\u0435\\u0440)"
+
+    const-string v9, "\\u0418\\u0441\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435 \\u043e\\u0440\\u0444\\u043e\\u0433\\u0440\\u0430\\u0444\\u0438\\u0438 \\u0438 \\u043f\\u0443\\u043d\\u043a\\u0442\\u0443\\u0430\\u0446\\u0438\\u0438 \\u043f\\u043e \\u043d\\u043e\\u0440\\u043c\\u0430\\u043c \\u0440\\u0443\\u0441\\u0441\\u043a\\u043e\\u0433\\u043e \\u044f\\u0437\\u044b\\u043a\\u0430 \\u0441 Git Diff \\u043a\\u0430\\u0440\\u0442\\u043e\\u0447\\u043a\\u043e\\u0439."
+
+    invoke-direct/range {v7 .. v13}, Lcom/akshaykadam/pixelboard/extension/settings/GboardPatchesSettingsContract$RadioRow;-><init>(Ljava/lang/CharSequence;Ljava/lang/String;ZZLjava/lang/Runnable;Landroid/graphics/drawable/Drawable;)V
+
+    invoke-interface {v5, v7}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    const-string v3, "GBOARD_SERVER" """
+
+if "GboardSetYandexBackendAction" not in act_norm and backend_list_anchor in act_norm:
+    act_norm = act_norm.replace(backend_list_anchor, yandex_radiorow_smali, 1)
+    print("Injected Yandex Speller RadioRow into GboardPatchesSettingsActivity")
+else:
+    print("Yandex Speller RadioRow already present or anchor not found")
+
+with open(settings_activity_path, "w", encoding="utf-8") as f:
+    f.write(act_norm)

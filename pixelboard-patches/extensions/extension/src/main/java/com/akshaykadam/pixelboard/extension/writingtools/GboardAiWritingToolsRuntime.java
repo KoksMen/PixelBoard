@@ -658,6 +658,10 @@ public final class GboardAiWritingToolsRuntime {
         boolean eligibleForNpu = GboardAiWritingToolsDeviceSupport.isSupportedDevice(
                 Build.MANUFACTURER, Build.MODEL, Build.DEVICE);
 
+        if (GboardAiWritingToolsSettings.BACKEND_YANDEX.equals(backendType)) {
+            // Yandex Speller handles proofreading via GboardProofreadService
+            return new BackendDecision(Long.valueOf(1L), Boolean.FALSE, Boolean.FALSE);
+        }
         if (GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backendType)) {
             if (eligibleForNpu) {
                 return new BackendDecision(Long.valueOf(2L), Boolean.TRUE, Boolean.TRUE);
