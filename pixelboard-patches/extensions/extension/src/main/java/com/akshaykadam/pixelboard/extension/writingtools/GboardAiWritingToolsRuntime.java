@@ -582,20 +582,6 @@ public final class GboardAiWritingToolsRuntime {
             return originalResult;
         }
 
-        if (GboardAiWritingToolsSettings.BACKEND_YANDEX.equals(settings.backendType)) {
-            // When Yandex is chosen, disable Google Cloud proofreading, writing helper on selection,
-            // and spellchecker chips so Google Cloud does not run in background or pop up competing suggestions
-            if (FLAG_CONFIG_PROOFREAD.equals(flagName)
-                    || FLAG_WRITING_HELPER_ON_SELECTED_TEXT.equals(flagName)
-                    || FLAG_WRITING_HELPER.equals(flagName)
-                    || FLAG_ENABLE_SPELLCHECKER_CHIPS_UI.equals(flagName)
-                    || FLAG_ON_DEVICE_PROOFREAD.equals(flagName)) {
-                return Boolean.FALSE;
-            }
-            if (FLAG_BACKEND_TYPE.equals(flagName)) {
-                return Long.valueOf(0L);
-            }
-        }
 
         if (packageName != null
                 && (packageName.equals(RENAMED_GBOARD_PACKAGE)

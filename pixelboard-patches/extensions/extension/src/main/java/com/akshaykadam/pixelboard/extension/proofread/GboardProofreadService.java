@@ -187,25 +187,16 @@ public final class GboardProofreadService {
                 String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
                         com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
 
-                // If backend is Yandex, intercept Jarvis to run Yandex Speller + Git Diff:
-                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_YANDEX.equals(backend)) {
-                    final View finalView = targetView;
-                    getMainHandler().post(() -> checkAndShowDiff(finalView));
-                    return true;
-                }
-
-                // If user selected AICore, Astrea, or Google Cloud Server, allow native Gboard Writing Tools to handle it!
+                // If user explicitly selected AICore or Astrea on-device inference, let native Gboard Writing Tools handle it
                 if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
-                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)
-                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_GBOARD_SERVER.equals(backend)) {
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
                     return false;
                 }
 
-                if (GboardProofreadSettings.isEnabled(context)) {
-                    final View finalView = targetView;
-                    getMainHandler().post(() -> checkAndShowDiff(finalView));
-                    return true;
-                }
+                // For Yandex Speller (and by default): run full Yandex Speller + Russian grammar with Git Diff card
+                final View finalView = targetView;
+                getMainHandler().post(() -> checkAndShowDiff(finalView));
+                return true;
             }
         } catch (Throwable t) {
             logw(TAG, "Failed in onJarvisClicked", t);

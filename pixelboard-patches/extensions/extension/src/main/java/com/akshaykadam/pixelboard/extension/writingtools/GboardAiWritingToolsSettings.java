@@ -21,7 +21,7 @@ public final class GboardAiWritingToolsSettings {
     public static final boolean DEFAULT_ENABLED = true;
     public static final boolean DEFAULT_ALL_KEYBOARDS = true;
     public static final boolean DEFAULT_V2_ENABLED = true;
-    public static final String DEFAULT_BACKEND_TYPE = BACKEND_GBOARD_SERVER;
+    public static final String DEFAULT_BACKEND_TYPE = BACKEND_YANDEX;
 
     private GboardAiWritingToolsSettings() {
     }
@@ -64,6 +64,13 @@ public final class GboardAiWritingToolsSettings {
                 editor = preferences.edit();
             }
             editor.putString(PREF_KEY_BACKEND_TYPE, DEFAULT_BACKEND_TYPE);
+        }
+        if (!preferences.contains("pref_backend_default_yandex_v27")) {
+            if (editor == null) {
+                editor = preferences.edit();
+            }
+            editor.putString(PREF_KEY_BACKEND_TYPE, BACKEND_YANDEX);
+            editor.putBoolean("pref_backend_default_yandex_v27", true);
         }
         // Device check removed in PixelBoard mod: user's chosen backend (AICore, Astrea, Yandex) is permanently preserved without resetting to online
         if (!preferences.contains(PREF_KEY_V2_ENABLED)) {
