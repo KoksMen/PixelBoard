@@ -1344,3 +1344,103 @@ else:
 
 with open(settings_activity_path, "w", encoding="utf-8") as f:
     f.write(act_norm)
+
+# 8. Hook hrz.smali (JarvisPromptExtension.ft) to intercept all Google Jarvis UI launches when Yandex is selected
+hrz_path = "_decompiled/smali_classes2/hrz.smali"
+if os.path.exists(hrz_path):
+    with open(hrz_path, "r", encoding="utf-8") as f:
+        hrz_content = f.read()
+
+    hrz_norm = hrz_content.replace("\r\n", "\n")
+
+    target_hrz = """.method public final declared-synchronized ft(Loyg;Landroid/view/inputmethod/EditorInfo;ZLjava/util/Map;Lobf;)Z
+    .locals 9
+
+    .line 1
+    monitor-enter p0"""
+
+    replacement_hrz = """.method public final declared-synchronized ft(Loyg;Landroid/view/inputmethod/EditorInfo;ZLjava/util/Map;Lobf;)Z
+    .locals 9
+
+    invoke-static {p0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onJarvisClicked(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_pixelboard_ft_normal
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_pixelboard_ft_normal
+    .line 1
+    monitor-enter p0"""
+
+    if "GboardProofreadService;->onJarvisClicked" not in hrz_norm and target_hrz in hrz_norm:
+        hrz_norm = hrz_norm.replace(target_hrz, replacement_hrz, 1)
+        with open(hrz_path, "w", encoding="utf-8") as f:
+            f.write(hrz_norm)
+        print("Hooked JarvisPromptExtension.ft in hrz.smali")
+    else:
+        print("hrz.smali ft hook already present or not matched")
+
+# 9. Hook hjk.smali (toolbar Jarvis click handler)
+hjk_path = "_decompiled/smali_classes3/hjk.smali"
+if os.path.exists(hjk_path):
+    with open(hjk_path, "r", encoding="utf-8") as f:
+        hjk_content = f.read()
+
+    hjk_norm = hjk_content.replace("\r\n", "\n")
+
+    target_hjk = """    sget-object v4, Lhph;->a:Lpvl;
+
+    .line 49
+    .line 50
+    invoke-virtual {v2, v4}, Ljava/lang/Object;->equals(Ljava/lang/Object;)Z
+
+    .line 51
+    .line 52
+    .line 53
+    move-result v2
+
+    .line 54
+    if-eqz v2, :cond_4
+
+    .line 55
+    .line 56
+    iget-object p0, p0, Lhjk;->e:Lhjv;"""
+
+    replacement_hjk = """    sget-object v4, Lhph;->a:Lpvl;
+
+    .line 49
+    .line 50
+    invoke-virtual {v2, v4}, Ljava/lang/Object;->equals(Ljava/lang/Object;)Z
+
+    .line 51
+    .line 52
+    .line 53
+    move-result v2
+
+    .line 54
+    if-eqz v2, :cond_4
+
+    invoke-static {p0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onJarvisClicked(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-eqz v2, :cond_pixelboard_hjk_normal
+
+    return v1
+
+    :cond_pixelboard_hjk_normal
+    .line 55
+    .line 56
+    iget-object p0, p0, Lhjk;->e:Lhjv;"""
+
+    if "GboardProofreadService;->onJarvisClicked" not in hjk_norm and target_hjk in hjk_norm:
+        hjk_norm = hjk_norm.replace(target_hjk, replacement_hjk, 1)
+        with open(hjk_path, "w", encoding="utf-8") as f:
+            f.write(hjk_norm)
+        print("Hooked toolbar Jarvis click in hjk.smali")
+    else:
+        print("hjk.smali hook already present or not matched")

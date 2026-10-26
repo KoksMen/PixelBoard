@@ -242,6 +242,12 @@ public final class GboardProofreadService {
             return;
         }
 
+        // Finish any pending composing state in Gboard before reading text
+        try {
+            ic.finishComposingText();
+        } catch (Throwable ignored) {
+        }
+
         // 1. Capture text
         CharSequence selected = ic.getSelectedText(0);
         final boolean wasSelected;
@@ -479,7 +485,7 @@ public final class GboardProofreadService {
 
         String res = text.trim();
 
-        // 1. Hyphenated prepositions, adverbs, and particles
+        // 1. Hyphenated prepositions and unambiguous stable adverbs
         res = res.replaceAll("(?i)\\b(из)\\s+(за)\\b", "$1-$2");
         res = res.replaceAll("(?i)\\b(из)\\s+(под)\\b", "$1-$2");
         res = res.replaceAll("(?i)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
@@ -489,7 +495,7 @@ public final class GboardProofreadService {
         res = res.replaceAll("(?i)\\b(едва)\\s+(едва)\\b", "едва-едва");
         res = res.replaceAll("(?i)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
         res = res.replaceAll("(?i)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(по)\\s+(русски|английски|немецки|моему|твоему|нашему|прежнему|видимому)\\b", "$1-$2");
+        res = res.replaceAll("(?i)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
 
         // Particles -то, -нибудь, -либо
         res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
@@ -507,15 +513,15 @@ public final class GboardProofreadService {
             res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
         }
 
-        // 3. Opposing & coordinating conjunctions
-        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато|да и)\\b", "$1, $2");
+        // 3. Opposing & coordinating conjunctions (indisputable comma rules)
+        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
         res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
 
         // 4. Subordinate conjunctions & relative words
         String[] subordinateConjunctions = new String[] {
-                "чтобы", "чтоб", "если", "когда", "хотя", "пока", "будто", "словно", "едва",
+                "чтобы", "чтоб", "хотя",
                 "который", "которая", "которое", "которые", "которого", "которой", "которому",
-                "которым", "которую", "которых", "которыми", "где", "куда", "откуда"
+                "которым", "которую", "которых", "которыми"
         };
         for (String conj : subordinateConjunctions) {
             res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
@@ -533,12 +539,11 @@ public final class GboardProofreadService {
         res = res.replaceAll("(?i),\\s*кое,\\s*что\\b", "кое-что");
         res = res.replaceAll("(?i)\\bкое,\\s*что\\b", "кое-что");
 
-        // 5. Introductory words & phrases
+        // 5. Introductory words - only unambiguous modal words
         String[] introWords = new String[] {
-                "конечно", "кстати", "например", "к счастью", "к сожалению", "в общем",
-                "короче", "между прочим", "разумеется", "безусловно", "естественно",
-                "во-первых", "во-вторых", "в-третьих", "впрочем", "пожалуй", "вероятно",
-                "следовательно", "таким образом"
+                "конечно", "кстати", "например", "к счастью", "к сожалению",
+                "между прочим", "разумеется", "безусловно",
+                "во-первых", "во-вторых", "в-третьих", "следовательно", "таким образом"
         };
         for (String iw : introWords) {
             // At start of sentence
@@ -570,14 +575,6 @@ public final class GboardProofreadService {
             }
         }
         res = capitalized.toString();
-
-        // 8. Add question mark to interrogative sentences if missing
-        if (Pattern.compile("^(почему|зачем|как|где|куда|откуда|когда|кто|что|сколько|разве|неужели)\\b(?!-)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(res).find()) {
-            if (!Pattern.compile("[.!?]$").matcher(res).find()
-                    && !Pattern.compile("(?i)\\b(потому что|из-за того что)\\b").matcher(res).find()) {
-                res += "?";
-            }
-        }
 
         // Reattach leading and trailing whitespace
         String prefix = text.substring(0, startSpaces);
@@ -683,6 +680,10 @@ public final class GboardProofreadService {
 
         try {
             ic.beginBatchEdit();
+            try {
+                ic.finishComposingText();
+            } catch (Throwable ignored) {
+            }
             if (result.wasSelected) {
                 ic.commitText(result.correctedText, 1);
             } else {
