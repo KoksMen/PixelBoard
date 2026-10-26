@@ -62,12 +62,11 @@ public final class GboardProofreadButton {
      */
     public static final class KeyIconView extends View {
         private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path mKeyPath = new Path();
 
         public KeyIconView(Context context) {
             super(context);
-            mPaint.setStyle(Paint.Style.STROKE);
-            mPaint.setStrokeCap(Paint.Cap.ROUND);
-            mPaint.setStrokeJoin(Paint.Join.ROUND);
+            mPaint.setStyle(Paint.Style.FILL);
         }
 
         public void setColor(int color) {
@@ -82,28 +81,43 @@ public final class GboardProofreadButton {
             int h = getHeight();
             if (w == 0 || h == 0) return;
 
+            // Google Material 3 Filled Key Icon (bold, theme-tinted silhouette matching native Gboard toolbar)
             float cx = w * 0.5f;
             float cy = h * 0.5f;
-            float scale = Math.min(w, h) / 36f;
-            mPaint.setStrokeWidth(2.2f * scale);
+            float s = Math.min(w, h) / 24f; // 24dp Material design grid
 
-            // Key head (circle) on left
-            float r = 5.2f * scale;
-            float headX = cx - 5.5f * scale;
-            mPaint.setStyle(Paint.Style.STROKE);
-            canvas.drawCircle(headX, cy, r, mPaint);
+            mPaint.setStyle(Paint.Style.FILL);
 
-            // Key shaft extending right
-            float shaftStartX = headX + r;
-            float shaftEndX = cx + 9.5f * scale;
-            canvas.drawLine(shaftStartX, cy, shaftEndX, cy, mPaint);
+            mKeyPath.reset();
+            mKeyPath.setFillType(Path.FillType.EVEN_ODD);
 
-            // Key teeth pointing down
-            float tooth1X = cx + 4.5f * scale;
-            float tooth2X = cx + 8.5f * scale;
-            float toothLen = 4.0f * scale;
-            canvas.drawLine(tooth1X, cy, tooth1X, cy + toothLen, mPaint);
-            canvas.drawLine(tooth2X, cy, tooth2X, cy + toothLen, mPaint);
+            // Outer head circle (radius 5.2dp centered at cx - 4.8dp)
+            float headCenterX = cx - 4.8f * s;
+            mKeyPath.addCircle(headCenterX, cy, 5.2f * s, Path.Direction.CW);
+
+            // Inner hole cutout (radius 2.2dp)
+            mKeyPath.addCircle(headCenterX, cy, 2.2f * s, Path.Direction.CW);
+
+            // Key shaft (solid bar extending to right edge)
+            float shaftLeft = headCenterX + 3.2f * s;
+            float shaftTop = cy - 1.4f * s;
+            float shaftRight = cx + 9.2f * s;
+            float shaftBottom = cy + 1.4f * s;
+            mKeyPath.addRect(shaftLeft, shaftTop, shaftRight, shaftBottom, Path.Direction.CW);
+
+            // Key tooth 1 (downward rectangular tooth)
+            float t1Left = cx + 4.0f * s;
+            float t1Right = cx + 6.2f * s;
+            float t1Bottom = cy + 4.4f * s;
+            mKeyPath.addRect(t1Left, shaftTop, t1Right, t1Bottom, Path.Direction.CW);
+
+            // Key tooth 2 (downward rectangular tooth at end of shaft)
+            float t2Left = cx + 7.2f * s;
+            float t2Right = cx + 9.2f * s;
+            float t2Bottom = cy + 4.4f * s;
+            mKeyPath.addRect(t2Left, shaftTop, t2Right, t2Bottom, Path.Direction.CW);
+
+            canvas.drawPath(mKeyPath, mPaint);
         }
     }
 
@@ -176,9 +190,10 @@ public final class GboardProofreadButton {
         if (keyboardView == null) return;
         Context context = keyboardView.getContext();
 
+        boolean proofreadEnabled = GboardProofreadSettings.isEnabled(context);
         boolean autofillEnabled = GboardAutofillSettings.isEnabled(context);
 
-        if (!autofillEnabled) {
+        if (!proofreadEnabled && !autofillEnabled) {
             detach();
             return;
         }
@@ -202,7 +217,7 @@ public final class GboardProofreadButton {
                 }
 
                 boolean positionLeft = GboardProofreadSettings.isPositionLeft(context);
-                LinearLayout bar = createBar(context, keyboardView, host, autofillEnabled);
+                LinearLayout bar = createBar(context, keyboardView, host, proofreadEnabled, autofillEnabled);
                 if (bar == null) return;
 
                 String pkg = context.getPackageName();
@@ -216,7 +231,8 @@ public final class GboardProofreadButton {
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.gravity = Gravity.CENTER_VERTICAL;
 
-                int barWidth = dp(context, 44);
+                int numButtons = (autofillEnabled ? 1 : 0) + (proofreadEnabled ? 1 : 0);
+                int barWidth = numButtons > 0 ? (numButtons * dp(context, 40) + (numButtons > 1 ? dp(context, 4) : 0)) : 0;
                 float savedRatio = GboardProofreadSettings.isAutofillPositionRatio(context);
 
                 if (savedRatio >= 0.0f && host.getWidth() > 0) {
@@ -251,7 +267,7 @@ public final class GboardProofreadButton {
                 }
 
                 // Adjust middle bar padding so word suggestions and stickers never collide with the buttons
-                adjustMiddleBarPadding(host, pkg, positionLeft, barWidth, context);
+                adjustMiddleBarPadding(host, pkg, positionLeft, barWidth, context, savedRatio >= 0.0f);
 
                 host.addView(bar, params);
                 bar.bringToFront();
@@ -290,7 +306,7 @@ public final class GboardProofreadButton {
         try {
             String pkg = context.getPackageName();
 
-            // 0. If top bar customization/edit page is open, hide overlay bar
+            // 0. If top bar customization/edit page is open, hide overlay bar and reset padding
             View r = host.getRootView();
             if (r != null) {
                 if (findViewByClassNameRecursive(r, "EditPage") != null
@@ -298,6 +314,7 @@ public final class GboardProofreadButton {
                         || findViewByClassNameRecursive(r, "AccessPointsPanel") != null) {
                     if (bar.getVisibility() != View.GONE) {
                         bar.setVisibility(View.GONE);
+                        adjustMiddleBarPadding(host, pkg, false, 0, context, false);
                     }
                     return;
                 }
@@ -320,6 +337,7 @@ public final class GboardProofreadButton {
                     if (backView != null && backView.getVisibility() == View.VISIBLE) {
                         if (bar.getVisibility() != View.GONE) {
                             bar.setVisibility(View.GONE);
+                            adjustMiddleBarPadding(host, pkg, false, 0, context, false);
                         }
                         return;
                     }
@@ -449,24 +467,24 @@ public final class GboardProofreadButton {
         });
     }
 
-    private static void adjustMiddleBarPadding(ViewGroup host, String pkg, boolean positionLeft, int barWidth, Context context) {
-        if (host == null || barWidth <= 0) return;
+    private static void adjustMiddleBarPadding(ViewGroup host, String pkg, boolean positionLeft, int barWidth, Context context, boolean isCustomDragged) {
+        if (host == null) return;
         try {
-            int middleBarId = host.getResources().getIdentifier("id_0x7f0b03ab", "id", pkg);
-            View middleBar = middleBarId != 0 ? host.findViewById(middleBarId) : null;
-            if (middleBar == null) {
-                int candId = host.getResources().getIdentifier("softkey_holder_fixed_candidates", "id", pkg);
-                View cand = candId != 0 ? host.findViewById(candId) : null;
-                if (cand != null && cand.getParent() instanceof View) {
-                    middleBar = (View) cand.getParent();
-                }
-            }
+            int candId = host.getResources().getIdentifier("softkey_holder_fixed_candidates", "id", pkg);
+            View cand = candId != 0 ? host.findViewById(candId) : null;
+            View middleBar = cand != null && cand.getParent() instanceof View ? (View) cand.getParent() : cand;
+
             if (middleBar != null) {
-                int extraPad = barWidth + dp(context, 4);
-                if (positionLeft) {
-                    middleBar.setPadding(extraPad, middleBar.getPaddingTop(), 0, middleBar.getPaddingBottom());
+                if (barWidth <= 0 || isCustomDragged) {
+                    // Reset padding so candidate strip has full dynamic width
+                    middleBar.setPadding(0, middleBar.getPaddingTop(), 0, middleBar.getPaddingBottom());
                 } else {
-                    middleBar.setPadding(0, middleBar.getPaddingTop(), extraPad, middleBar.getPaddingBottom());
+                    int extraPad = barWidth + dp(context, 2);
+                    if (positionLeft) {
+                        middleBar.setPadding(extraPad, middleBar.getPaddingTop(), 0, middleBar.getPaddingBottom());
+                    } else {
+                        middleBar.setPadding(0, middleBar.getPaddingTop(), extraPad, middleBar.getPaddingBottom());
+                    }
                 }
             }
         } catch (Throwable ignored) {
@@ -474,8 +492,8 @@ public final class GboardProofreadButton {
     }
 
     private static LinearLayout createBar(
-            Context context, View keyboardView, ViewGroup host, boolean autofillEnabled) {
-        if (!autofillEnabled) {
+            Context context, View keyboardView, ViewGroup host, boolean proofreadEnabled, boolean autofillEnabled) {
+        if (!proofreadEnabled && !autofillEnabled) {
             return null;
         }
         LinearLayout bar = new LinearLayout(context);
@@ -490,27 +508,56 @@ public final class GboardProofreadButton {
         // Native Gboard icon colors: light gray on dark theme, dark gray on light theme
         int iconColor = isDark ? Color.parseColor("#E2E2E9") : Color.parseColor("#44474E");
 
-        View autofillBtn = createToolbarIconButton(context, keyboardView, host, bar, new KeyIconView(context), iconColor);
-        sAutofillButtonRef = new WeakReference<>(autofillBtn);
-        sProofreadButtonRef = null;
+        boolean sparkleFirst = GboardProofreadSettings.isOrderSparkleFirst(context);
 
-        bar.addView(autofillBtn);
+        View autofillBtn = null;
+        if (autofillEnabled) {
+            autofillBtn = createToolbarIconButton(context, keyboardView, host, bar, new KeyIconView(context), iconColor, true);
+            sAutofillButtonRef = new WeakReference<>(autofillBtn);
+        } else {
+            sAutofillButtonRef = null;
+        }
+
+        View proofreadBtn = null;
+        if (proofreadEnabled) {
+            proofreadBtn = createToolbarIconButton(context, keyboardView, host, bar, new SparkleIconView(context), iconColor, false);
+            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
+        } else {
+            sProofreadButtonRef = null;
+        }
+
+        View firstBtn = sparkleFirst ? proofreadBtn : autofillBtn;
+        View secondBtn = sparkleFirst ? autofillBtn : proofreadBtn;
+
+        if (firstBtn != null) {
+            bar.addView(firstBtn);
+        }
+        if (secondBtn != null) {
+            if (firstBtn != null) {
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) secondBtn.getLayoutParams();
+                if (lp != null) {
+                    lp.leftMargin = dp(context, 4);
+                }
+            }
+            bar.addView(secondBtn);
+        }
+
         return bar;
     }
 
     /**
      * Creates a native Gboard-style transparent toolbar icon button that supports
-     * borderless ripple, in-place autofill, Bitwarden launch on long press,
+     * borderless ripple, in-place actions, long-press gestures,
      * and horizontal drag-and-drop to position anywhere on the top bar.
      */
     private static View createToolbarIconButton(
-            Context context, View keyboardView, ViewGroup host, LinearLayout bar, View iconView, int iconColor) {
+            Context context, View keyboardView, ViewGroup host, LinearLayout bar, View iconView, int iconColor, boolean isAutofill) {
         FrameLayout buttonFrame = new FrameLayout(context);
         buttonFrame.setClickable(true);
         buttonFrame.setFocusable(true);
         buttonFrame.setTag(CUSTOM_BUTTON_TAG);
 
-        int buttonSize = dp(context, 44);
+        int buttonSize = dp(context, 40);
         LinearLayout.LayoutParams frameParams = new LinearLayout.LayoutParams(buttonSize, buttonSize);
         frameParams.gravity = Gravity.CENTER_VERTICAL;
         buttonFrame.setLayoutParams(frameParams);
@@ -532,6 +579,8 @@ public final class GboardProofreadButton {
 
         if (iconView instanceof KeyIconView) {
             ((KeyIconView) iconView).setColor(iconColor);
+        } else if (iconView instanceof SparkleIconView) {
+            ((SparkleIconView) iconView).setColor(iconColor);
         }
         buttonFrame.addView(iconView);
 
@@ -601,8 +650,13 @@ public final class GboardProofreadButton {
                 buttonFrame.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             } catch (Throwable ignored) {
             }
-            // Short click: trigger in-place autofill prompt without minimizing current app
-            GboardAutofillService.requestAutofillOnly(keyboardView);
+            if (isAutofill) {
+                // Short click: trigger in-place autofill prompt without minimizing current app
+                GboardAutofillService.requestAutofillOnly(keyboardView);
+            } else {
+                // Short click: ALWAYS run full Yandex Speller API + Russian grammar heuristics with Git Diff card!
+                GboardProofreadService.checkAndShowDiff(keyboardView);
+            }
         });
 
         buttonFrame.setOnLongClickListener(v -> {
@@ -611,8 +665,22 @@ public final class GboardProofreadButton {
             } catch (Throwable ignored) {
             }
             Context ctx = v.getContext();
-            // Long press on Key button: open Bitwarden password manager app!
-            return GboardAutofillService.launchPasswordManagerApp(ctx);
+            if (isAutofill) {
+                // Long press on Key button: open Bitwarden password manager app!
+                return GboardAutofillService.launchPasswordManagerApp(ctx);
+            } else {
+                // Long press on Sparkle button: open PixelBoard settings!
+                try {
+                    Intent intent = new Intent();
+                    intent.setClassName(ctx.getPackageName(), "com.akshaykadam.pixelboard.extension.settings.GboardPatchesSettingsActivity");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(intent);
+                    return true;
+                } catch (Throwable t) {
+                    Log.w(TAG, "Failed to launch settings from button long click", t);
+                    return false;
+                }
+            }
         });
 
         return buttonFrame;
