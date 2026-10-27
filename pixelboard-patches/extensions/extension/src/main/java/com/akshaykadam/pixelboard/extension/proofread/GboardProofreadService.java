@@ -66,7 +66,7 @@ public final class GboardProofreadService {
 
     private static void logi(String tag, String msg) {
         try {
-            Log.i(tag, msg);
+            Log.w(tag, msg);
         } catch (Throwable ignored) {
         }
     }
@@ -105,6 +105,20 @@ public final class GboardProofreadService {
             this.len = len;
             this.word = word;
             this.suggestions = suggestions;
+        }
+    }
+
+    public static final class TextScope {
+        public final String beforeScope;
+        public final String afterScope;
+
+        public TextScope(String beforeScope, String afterScope) {
+            this.beforeScope = beforeScope != null ? beforeScope : "";
+            this.afterScope = afterScope != null ? afterScope : "";
+        }
+
+        public String getFullText() {
+            return beforeScope + afterScope;
         }
     }
 
@@ -203,6 +217,22 @@ public final class GboardProofreadService {
                     return false;
                 }
 
+                // If 4-squares menu or a subview is open, return to main typing keyboard
+                try {
+                    View root = targetView.getRootView();
+                    if (root != null) {
+                        String pkg = context.getPackageName();
+                        int backId = root.getResources().getIdentifier("key_pos_back_to_prime", "id", pkg);
+                        if (backId != 0) {
+                            View backBtn = root.findViewById(backId);
+                            if (backBtn != null && backBtn.getVisibility() == View.VISIBLE) {
+                                backBtn.performClick();
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+
                 // For Yandex Speller (and by default): run full Yandex Speller + Russian grammar with Git Diff card
                 final View finalView = targetView;
                 getMainHandler().post(() -> checkAndShowDiff(finalView));
@@ -215,6 +245,87 @@ public final class GboardProofreadService {
     }
 
 
+
+    /**
+     * Determines the active sentence or paragraph boundary around cursor
+     * so that proofreading is cleanly scoped without touching unrelated text or lines.
+     */
+    public static TextScope findActiveSentenceScope(String before, String after) {
+        if (before == null) before = "";
+        if (after == null) after = "";
+
+        // 1. Hard line boundary: Never cross \n or \r!
+        int lastNewline = Math.max(before.lastIndexOf('\n'), before.lastIndexOf('\r'));
+        String beforeInLine = lastNewline >= 0 ? before.substring(lastNewline + 1) : before;
+
+        int nextNewline = after.indexOf('\n');
+        int nextCr = after.indexOf('\r');
+        if (nextNewline == -1 || (nextCr != -1 && nextCr < nextNewline)) {
+            nextNewline = nextCr;
+        }
+        String afterInLine = nextNewline >= 0 ? after.substring(0, nextNewline) : after;
+
+        // 2. Sentence boundary in beforeInLine:
+        String scopedBefore = beforeInLine;
+        int lastSentEnd = -1;
+        for (int i = 0; i < beforeInLine.length() - 1; i++) {
+            char c = beforeInLine.charAt(i);
+            if (c == '.' || c == '!' || c == '?') {
+                if (Character.isWhitespace(beforeInLine.charAt(i + 1))) {
+                    lastSentEnd = i + 1;
+                    while (lastSentEnd < beforeInLine.length() && Character.isWhitespace(beforeInLine.charAt(lastSentEnd))) {
+                        lastSentEnd++;
+                    }
+                }
+            }
+        }
+
+        if (lastSentEnd >= 0) {
+            if (lastSentEnd >= beforeInLine.length()) {
+                int prevSentEnd = -1;
+                for (int i = 0; i < beforeInLine.length() - 2; i++) {
+                    char c = beforeInLine.charAt(i);
+                    if (c == '.' || c == '!' || c == '?') {
+                        if (Character.isWhitespace(beforeInLine.charAt(i + 1))) {
+                            prevSentEnd = i + 1;
+                            while (prevSentEnd < beforeInLine.length() && Character.isWhitespace(beforeInLine.charAt(prevSentEnd))) {
+                                prevSentEnd++;
+                            }
+                        }
+                    }
+                }
+                if (prevSentEnd >= 0 && prevSentEnd < lastSentEnd) {
+                    scopedBefore = beforeInLine.substring(prevSentEnd);
+                } else {
+                    scopedBefore = beforeInLine;
+                }
+            } else {
+                scopedBefore = beforeInLine.substring(lastSentEnd);
+            }
+        }
+
+        // 3. Sentence boundary in afterInLine:
+        String scopedAfter = afterInLine;
+        for (int i = 0; i < afterInLine.length(); i++) {
+            char c = afterInLine.charAt(i);
+            if (c == '.' || c == '!' || c == '?') {
+                scopedAfter = afterInLine.substring(0, i + 1);
+                break;
+            }
+        }
+
+        // Clamp to max 250 characters before cursor if no punctuation was found
+        if (scopedBefore.length() > 250) {
+            int spaceIdx = scopedBefore.indexOf(' ', scopedBefore.length() - 250);
+            if (spaceIdx >= 0) {
+                scopedBefore = scopedBefore.substring(spaceIdx + 1);
+            } else {
+                scopedBefore = scopedBefore.substring(scopedBefore.length() - 250);
+            }
+        }
+
+        return new TextScope(scopedBefore, scopedAfter);
+    }
 
     /**
      * Checks text around cursor or selected text, and displays the Git-style Diff card.
@@ -263,13 +374,14 @@ public final class GboardProofreadService {
             afterLen = 0;
         } else {
             wasSelected = false;
-            CharSequence before = ic.getTextBeforeCursor(2000, 0);
-            CharSequence after = ic.getTextAfterCursor(1000, 0);
+            CharSequence before = ic.getTextBeforeCursor(1500, 0);
+            CharSequence after = ic.getTextAfterCursor(600, 0);
             String beforeStr = before != null ? before.toString() : "";
             String afterStr = after != null ? after.toString() : "";
-            textToCheck = beforeStr + afterStr;
-            beforeLen = beforeStr.length();
-            afterLen = afterStr.length();
+            TextScope scope = findActiveSentenceScope(beforeStr, afterStr);
+            textToCheck = scope.getFullText();
+            beforeLen = scope.beforeScope.length();
+            afterLen = scope.afterScope.length();
         }
 
         if (textToCheck.trim().isEmpty()) {
@@ -578,7 +690,7 @@ public final class GboardProofreadService {
                 capitalizeNext = false;
             } else {
                 capitalized.append(c);
-                if (c == '.' || c == '!' || c == '?') {
+                if (c == '.' || c == '!' || c == '?' || c == '\n') {
                     capitalizeNext = true;
                 }
             }
@@ -680,7 +792,6 @@ public final class GboardProofreadService {
         if (ims == null || result == null || result.correctedText == null) {
             return false;
         }
-        final InputMethodService finalIms = ims;
 
         InputConnection ic = ims.getCurrentInputConnection();
         if (ic == null) {
@@ -697,18 +808,21 @@ public final class GboardProofreadService {
             String orig = result.originalText;
             String corr = result.correctedText;
 
-            // Check if there is an active selection in the editor right now
+            // 1. Check active selection: if current selection matches orig
             CharSequence currentSel = ic.getSelectedText(0);
-            if (currentSel != null && currentSel.length() > 0 && currentSel.toString().equals(orig)) {
-                ic.commitText(corr, 1);
-                ic.endBatchEdit();
-                logi(TAG, "Applied correction via active selection: " + corr);
-                return true;
+            if (currentSel != null && currentSel.length() > 0) {
+                String selStr = currentSel.toString();
+                if (selStr.equals(orig) || selStr.trim().equals(orig.trim())) {
+                    ic.commitText(corr, 1);
+                    ic.endBatchEdit();
+                    logw(TAG, "Applied correction via active selection: " + corr);
+                    return true;
+                }
             }
 
-            // Otherwise, inspect what is currently in the editor around cursor
-            CharSequence beforeCs = ic.getTextBeforeCursor(2000, 0);
-            CharSequence afterCs = ic.getTextAfterCursor(1000, 0);
+            // 2. Read context around cursor
+            CharSequence beforeCs = ic.getTextBeforeCursor(1500, 0);
+            CharSequence afterCs = ic.getTextAfterCursor(600, 0);
             String before = beforeCs != null ? beforeCs.toString() : "";
             String after = afterCs != null ? afterCs.toString() : "";
 
@@ -717,7 +831,7 @@ public final class GboardProofreadService {
                 ic.deleteSurroundingText(orig.length(), 0);
                 ic.commitText(corr, 1);
                 ic.endBatchEdit();
-                logi(TAG, "Applied correction via before.endsWith: " + corr);
+                logw(TAG, "Applied correction via before.endsWith: " + corr);
                 return true;
             }
 
@@ -726,7 +840,7 @@ public final class GboardProofreadService {
                 ic.deleteSurroundingText(0, orig.length());
                 ic.commitText(corr, 1);
                 ic.endBatchEdit();
-                logi(TAG, "Applied correction via after.startsWith: " + corr);
+                logw(TAG, "Applied correction via after.startsWith: " + corr);
                 return true;
             }
 
@@ -739,7 +853,7 @@ public final class GboardProofreadService {
                     ic.deleteSurroundingText(prefix.length(), suffix.length());
                     ic.commitText(corr, 1);
                     matchedInside = true;
-                    logi(TAG, "Applied correction via split match: " + corr);
+                    logw(TAG, "Applied correction via split match: " + corr);
                     break;
                 }
             }
@@ -748,24 +862,39 @@ public final class GboardProofreadService {
                 return true;
             }
 
-            // Case 4: Trimmed match (if whitespace slightly desynced)
+            // Case 4: Trimmed match (handling trailing/leading spaces desync)
             String origTrim = orig.trim();
             String corrTrim = corr.trim();
             if (!origTrim.isEmpty()) {
-                if (before.endsWith(origTrim)) {
-                    ic.deleteSurroundingText(origTrim.length(), 0);
-                    ic.commitText(corrTrim, 1);
+                int trailingSpaces = 0;
+                while (trailingSpaces < before.length() && Character.isWhitespace(before.charAt(before.length() - 1 - trailingSpaces))) {
+                    trailingSpaces++;
+                }
+                String beforeStripped = before.substring(0, before.length() - trailingSpaces);
+                if (beforeStripped.endsWith(origTrim)) {
+                    int toDel = origTrim.length() + trailingSpaces;
+                    ic.deleteSurroundingText(toDel, 0);
+                    String toCommit = trailingSpaces > 0 ? (corrTrim + " ") : corr;
+                    ic.commitText(toCommit, 1);
                     ic.endBatchEdit();
-                    logi(TAG, "Applied correction via trimmed before.endsWith: " + corrTrim);
+                    logw(TAG, "Applied correction via trimmed before.endsWith: " + toCommit);
                     return true;
                 }
-                if (after.startsWith(origTrim)) {
-                    ic.deleteSurroundingText(0, origTrim.length());
-                    ic.commitText(corrTrim, 1);
+
+                int leadingSpaces = 0;
+                while (leadingSpaces < after.length() && Character.isWhitespace(after.charAt(leadingSpaces))) {
+                    leadingSpaces++;
+                }
+                String afterStripped = after.substring(leadingSpaces);
+                if (afterStripped.startsWith(origTrim)) {
+                    int toDel = origTrim.length() + leadingSpaces;
+                    ic.deleteSurroundingText(0, toDel);
+                    ic.commitText(corr, 1);
                     ic.endBatchEdit();
-                    logi(TAG, "Applied correction via trimmed after.startsWith: " + corrTrim);
+                    logw(TAG, "Applied correction via trimmed after.startsWith: " + corr);
                     return true;
                 }
+
                 for (int k = 1; k < origTrim.length(); k++) {
                     String prefix = origTrim.substring(0, k);
                     String suffix = origTrim.substring(k);
@@ -773,7 +902,7 @@ public final class GboardProofreadService {
                         ic.deleteSurroundingText(prefix.length(), suffix.length());
                         ic.commitText(corrTrim, 1);
                         matchedInside = true;
-                        logi(TAG, "Applied correction via trimmed split match: " + corrTrim);
+                        logw(TAG, "Applied correction via trimmed split match: " + corrTrim);
                         break;
                     }
                 }
@@ -783,29 +912,73 @@ public final class GboardProofreadService {
                 }
             }
 
-            // Case 5: Word-level search in before if cursor slightly shifted
+            // Case 5: Near-cursor search in before (if cursor shifted slightly e.g. after punctuation auto-space)
             int idxInBefore = before.lastIndexOf(orig);
+            if (idxInBefore == -1 && !origTrim.isEmpty()) {
+                idxInBefore = before.lastIndexOf(origTrim);
+            }
             if (idxInBefore >= 0) {
-                int charsAfterOrig = before.length() - (idxInBefore + orig.length());
-                if (charsAfterOrig <= 20) {
-                    ic.deleteSurroundingText(charsAfterOrig + orig.length(), 0);
-                    ic.commitText(corr + before.substring(idxInBefore + orig.length()), 1);
+                int matchedLen = before.startsWith(orig, idxInBefore) ? orig.length() : origTrim.length();
+                int charsAfter = before.length() - (idxInBefore + matchedLen);
+                if (charsAfter <= 15) {
+                    String extra = before.substring(idxInBefore + matchedLen);
+                    ic.deleteSurroundingText(charsAfter + matchedLen, 0);
+                    ic.commitText(corr + extra, 1);
                     ic.endBatchEdit();
-                    logi(TAG, "Applied correction via near-cursor index search");
+                    logw(TAG, "Applied correction via near-cursor index search in before");
                     return true;
                 }
             }
 
-            // Fallback: stored lengths
-            if (result.wasSelected) {
-                ic.commitText(corr, 1);
-            } else {
-                ic.deleteSurroundingText(result.beforeLength, result.afterLength);
-                ic.commitText(corr, 1);
+            // Case 6: Near-cursor search in after
+            int idxInAfter = after.indexOf(orig);
+            if (idxInAfter == -1 && !origTrim.isEmpty()) {
+                idxInAfter = after.indexOf(origTrim);
             }
+            if (idxInAfter >= 0 && idxInAfter <= 15) {
+                int matchedLen = after.startsWith(orig, idxInAfter) ? orig.length() : origTrim.length();
+                String prefixExtra = after.substring(0, idxInAfter);
+                ic.deleteSurroundingText(0, idxInAfter + matchedLen);
+                ic.commitText(prefixExtra + corr, 1);
+                ic.endBatchEdit();
+                logw(TAG, "Applied correction via near-cursor index search in after");
+                return true;
+            }
+
+            // Case 7: Case-insensitive match at end of before
+            if (before.length() >= orig.length() && before.substring(before.length() - orig.length()).equalsIgnoreCase(orig)) {
+                ic.deleteSurroundingText(orig.length(), 0);
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logw(TAG, "Applied correction via case-insensitive before.endsWith: " + corr);
+                return true;
+            }
+
+            // Case 8: Verified stored scope match (only if the text before cursor actually matches stored beforeScope)
+            if (result.beforeLength > 0 && before.length() >= result.beforeLength) {
+                String beforeSub = before.substring(before.length() - result.beforeLength);
+                String expectedBefore = result.originalText.substring(0, result.beforeLength);
+                if (beforeSub.equals(expectedBefore) || beforeSub.equalsIgnoreCase(expectedBefore)) {
+                    int toDelAfter = 0;
+                    if (result.afterLength > 0 && after.length() >= result.afterLength) {
+                        String afterSub = after.substring(0, result.afterLength);
+                        String expectedAfter = result.originalText.substring(result.beforeLength);
+                        if (afterSub.equals(expectedAfter) || afterSub.equalsIgnoreCase(expectedAfter)) {
+                            toDelAfter = result.afterLength;
+                        }
+                    }
+                    ic.deleteSurroundingText(result.beforeLength, toDelAfter);
+                    ic.commitText(corr, 1);
+                    ic.endBatchEdit();
+                    logw(TAG, "Applied correction via verified stored scope: " + corr);
+                    return true;
+                }
+            }
+
+            // Safe Abort: Do NOT blindly delete characters if no verified match was found!
+            logw(TAG, "Aborted replacement: target text does not match cursor context (orig='" + orig + "'); preventing destructive deletion");
             ic.endBatchEdit();
-            logi(TAG, "Applied correction via fallback: " + corr);
-            return true;
+            return false;
         } catch (Throwable t) {
             logw(TAG, "Failed to apply correction to InputConnection", t);
             return false;

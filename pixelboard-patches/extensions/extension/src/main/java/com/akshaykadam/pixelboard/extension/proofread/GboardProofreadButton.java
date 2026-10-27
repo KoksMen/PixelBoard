@@ -185,23 +185,26 @@ public final class GboardProofreadButton {
 
     /**
      * Attaches the Quick Actions Bar into the keyboard header row.
+     * Note: Only the Autofill key button is placed here when enabled.
+     * Proofreading is handled exclusively by Gboard's native Writing Tools button [✎✨]
+     * to prevent duplicate icons in the toolbar.
      */
     public static void attach(View keyboardView) {
         if (keyboardView == null) return;
         Context context = keyboardView.getContext();
 
-        boolean proofreadEnabled = GboardProofreadSettings.isEnabled(context);
-        boolean autofillEnabled = GboardAutofillSettings.isEnabled(context);
-
-        if (!proofreadEnabled && !autofillEnabled) {
-            detach();
-            return;
-        }
-
         sMainHandler.post(() -> {
             try {
                 ViewGroup host = findBestKeyboardHost(keyboardView);
-                if (host == null) return;
+                if (host != null) {
+                    sAttachedParentRef = new WeakReference<>(host);
+                }
+
+                boolean autofillEnabled = GboardAutofillSettings.isEnabled(context);
+                if (!autofillEnabled) {
+                    detachBarOnly();
+                    return;
+                }
 
                 ViewGroup existingBar = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
                 ViewGroup attachedParent = sAttachedParentRef != null ? sAttachedParentRef.get() : null;
@@ -217,7 +220,7 @@ public final class GboardProofreadButton {
                 }
 
                 boolean positionLeft = GboardProofreadSettings.isPositionLeft(context);
-                LinearLayout bar = createBar(context, keyboardView, host, proofreadEnabled, autofillEnabled);
+                LinearLayout bar = createBar(context, keyboardView, host, false, autofillEnabled);
                 if (bar == null) return;
 
                 String pkg = context.getPackageName();
@@ -231,8 +234,7 @@ public final class GboardProofreadButton {
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.gravity = Gravity.CENTER_VERTICAL;
 
-                int numButtons = (autofillEnabled ? 1 : 0) + (proofreadEnabled ? 1 : 0);
-                int barWidth = numButtons > 0 ? (numButtons * dp(context, 40) + (numButtons > 1 ? dp(context, 4) : 0)) : 0;
+                int barWidth = dp(context, 40);
                 float savedRatio = GboardProofreadSettings.isAutofillPositionRatio(context);
 
                 if (savedRatio >= 0.0f && host.getWidth() > 0) {
@@ -266,7 +268,7 @@ public final class GboardProofreadButton {
                     params.leftMargin = 0;
                 }
 
-                // Adjust middle bar padding so word suggestions and stickers never collide with the buttons
+                // Adjust middle bar padding so word suggestions and stickers never collide with the button
                 adjustMiddleBarPadding(host, pkg, positionLeft, barWidth, context, savedRatio >= 0.0f);
 
                 host.addView(bar, params);
@@ -438,31 +440,22 @@ public final class GboardProofreadButton {
     }
 
     public static void showProofreadOnTouch(View keyboardView) {
-        if (keyboardView == null) return;
-        Context context = keyboardView.getContext();
-        if (!GboardProofreadSettings.isEnabled(context)) return;
+        // No-op: Gboard's native Writing Tools button [✎✨] handles proofreading
+    }
 
-        sMainHandler.post(() -> {
-            try {
-                attach(keyboardView);
-                View btn = sProofreadButtonRef != null ? sProofreadButtonRef.get() : null;
-                if (btn != null && btn.getVisibility() != View.VISIBLE) {
-                    btn.setVisibility(View.VISIBLE);
-                }
-            } catch (Throwable ignored) {
-            }
-        });
+    public static void detachBarOnly() {
+        ViewGroup existing = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
+        if (existing != null && existing.getParent() instanceof ViewGroup) {
+            ((ViewGroup) existing.getParent()).removeView(existing);
+        }
+        if (sCurrentBarRef != null) sCurrentBarRef.clear();
+        if (sProofreadButtonRef != null) sProofreadButtonRef.clear();
+        if (sAutofillButtonRef != null) sAutofillButtonRef.clear();
     }
 
     public static void detach() {
         sMainHandler.post(() -> {
-            ViewGroup existing = sCurrentBarRef != null ? sCurrentBarRef.get() : null;
-            if (existing != null && existing.getParent() instanceof ViewGroup) {
-                ((ViewGroup) existing.getParent()).removeView(existing);
-            }
-            if (sCurrentBarRef != null) sCurrentBarRef.clear();
-            if (sProofreadButtonRef != null) sProofreadButtonRef.clear();
-            if (sAutofillButtonRef != null) sAutofillButtonRef.clear();
+            detachBarOnly();
             if (sAttachedParentRef != null) sAttachedParentRef.clear();
         });
     }
@@ -493,7 +486,7 @@ public final class GboardProofreadButton {
 
     private static LinearLayout createBar(
             Context context, View keyboardView, ViewGroup host, boolean proofreadEnabled, boolean autofillEnabled) {
-        if (!proofreadEnabled && !autofillEnabled) {
+        if (!autofillEnabled) {
             return null;
         }
         LinearLayout bar = new LinearLayout(context);
@@ -508,40 +501,11 @@ public final class GboardProofreadButton {
         // Native Gboard icon colors: light gray on dark theme, dark gray on light theme
         int iconColor = isDark ? Color.parseColor("#E2E2E9") : Color.parseColor("#44474E");
 
-        boolean sparkleFirst = GboardProofreadSettings.isOrderSparkleFirst(context);
+        View autofillBtn = createToolbarIconButton(context, keyboardView, host, bar, new KeyIconView(context), iconColor, true);
+        sAutofillButtonRef = new WeakReference<>(autofillBtn);
+        sProofreadButtonRef = null;
 
-        View autofillBtn = null;
-        if (autofillEnabled) {
-            autofillBtn = createToolbarIconButton(context, keyboardView, host, bar, new KeyIconView(context), iconColor, true);
-            sAutofillButtonRef = new WeakReference<>(autofillBtn);
-        } else {
-            sAutofillButtonRef = null;
-        }
-
-        View proofreadBtn = null;
-        if (proofreadEnabled) {
-            proofreadBtn = createToolbarIconButton(context, keyboardView, host, bar, new SparkleIconView(context), iconColor, false);
-            sProofreadButtonRef = new WeakReference<>(proofreadBtn);
-        } else {
-            sProofreadButtonRef = null;
-        }
-
-        View firstBtn = sparkleFirst ? proofreadBtn : autofillBtn;
-        View secondBtn = sparkleFirst ? autofillBtn : proofreadBtn;
-
-        if (firstBtn != null) {
-            bar.addView(firstBtn);
-        }
-        if (secondBtn != null) {
-            if (firstBtn != null) {
-                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) secondBtn.getLayoutParams();
-                if (lp != null) {
-                    lp.leftMargin = dp(context, 4);
-                }
-            }
-            bar.addView(secondBtn);
-        }
-
+        bar.addView(autofillBtn);
         return bar;
     }
 
