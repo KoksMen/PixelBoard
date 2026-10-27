@@ -8,6 +8,11 @@
 package com.akshaykadam.pixelboard.extension.proofread;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.text.Spannable;
+import android.text.SpannableString;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import android.inputmethodservice.InputMethodService;
 import android.os.Handler;
 import android.os.Looper;
@@ -163,105 +168,285 @@ public final class GboardProofreadService {
         if (sBypassJarvisIntercept) {
             return false;
         }
-        try {
-            View targetView = null;
-            if (caller instanceof View) {
-                targetView = (View) caller;
-            }
-            if (targetView == null) {
-                targetView = GboardProofreadButton.getAttachedParent();
-            }
-            if (targetView == null && caller != null) {
-                try {
-                    Object obr = null;
-                    try {
-                        obr = caller.getClass().getMethod("ah").invoke(caller);
-                    } catch (Throwable ignored) {
-                    }
-                    if (obr == null) {
-                        try {
-                            obr = caller.getClass().getMethod("aa").invoke(caller);
-                        } catch (Throwable ignored) {
-                        }
-                    }
-                    if (obr != null) {
-                        Object view = obr.getClass().getMethod("l").invoke(obr);
-                        if (view instanceof View) {
-                            targetView = (View) view;
-                        }
-                        if (targetView == null) {
-                            view = obr.getClass().getMethod("k").invoke(obr);
-                            if (view instanceof View) {
-                                targetView = (View) view;
-                            }
-                        }
-                    }
-                } catch (Throwable ignored) {
-                }
-            }
-
-            if (targetView == null) {
-                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
-                if (ims != null && ims.getWindow() != null) {
-                    View decor = ims.getWindow().getWindow() != null
-                            ? ims.getWindow().getWindow().getDecorView()
-                            : null;
-                    if (decor != null) {
-                        targetView = decor;
-                    }
-                }
-            }
-
-            if (targetView != null) {
-                Context context = targetView.getContext();
-                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
-                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
-
-                // If user explicitly selected AICore or Astrea on-device inference, let native Gboard Writing Tools handle it
-                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
-                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
-                    return false;
-                }
-
-                // If 4-squares menu or a subview is open, return to main typing keyboard
-                boolean clickedBack = false;
-                try {
-                    View root = targetView.getRootView();
-                    if (root != null) {
-                        String pkg = context.getPackageName();
-                        int backId = root.getResources().getIdentifier("key_pos_back_to_prime", "id", pkg);
-                        if (backId != 0) {
-                            View backBtn = root.findViewById(backId);
-                            if (backBtn != null && backBtn.getVisibility() == View.VISIBLE) {
-                                backBtn.performClick();
-                                clickedBack = true;
-                            }
-                        }
-                    }
-                } catch (Throwable ignored) {
-                }
-
-                // For Yandex Speller (and by default): run full Yandex Speller + Russian grammar with Git Diff card
-                final View finalView = targetView;
-                if (clickedBack) {
-                    getMainHandler().postDelayed(() -> checkAndShowDiff(finalView), 100);
-                } else {
-                    getMainHandler().post(() -> checkAndShowDiff(finalView));
-                }
-                return true;
-            }
-        } catch (Throwable t) {
-            logw(TAG, "Failed in onJarvisClicked", t);
-        }
+        // Smoothly pass through to native Gboard Writing Tools (JarvisKeyboard),
+        // which is now fully intercepted by Yandex Speller API + Russian grammar heuristics
+        // and displays the true Git Diff card styling directly in the native interface!
         return false;
     }
 
-
+    /**
+     * Resolves Android Context from JarvisExtension (hip) instance.
+     */
+    private static Context getContextFromHip(Object hipInstance) {
+        if (hipInstance == null) return null;
+        try {
+            Method m = hipInstance.getClass().getMethod("ac");
+            Object ctx = m.invoke(hipInstance);
+            if (ctx instanceof Context) {
+                return (Context) ctx;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Method m = hipInstance.getClass().getMethod("getContext");
+            Object ctx = m.invoke(hipInstance);
+            if (ctx instanceof Context) {
+                return (Context) ctx;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
 
     /**
-     * Determines the active sentence or paragraph boundary around cursor
-     * so that proofreading is cleanly scoped without touching unrelated text or lines.
+     * Extracts text to proofread from either the trigger info (qrw) or JarvisExtension (hip).
      */
+    private static String extractTextToProofread(Object hipInstance, Object qrwInstance) {
+        String text = null;
+        if (qrwInstance != null) {
+            try {
+                Method fMethod = qrwInstance.getClass().getMethod("F", qrwInstance.getClass());
+                Object s = fMethod.invoke(null, qrwInstance);
+                if (s != null) {
+                    text = s.toString();
+                }
+            } catch (Throwable ignored) {}
+            if (text == null || text.trim().isEmpty()) {
+                try {
+                    Field bField = qrwInstance.getClass().getDeclaredField("b");
+                    bField.setAccessible(true);
+                    Object oxh = bField.get(qrwInstance);
+                    if (oxh != null) {
+                        text = oxh.toString();
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        if ((text == null || text.trim().isEmpty()) && hipInstance != null) {
+            try {
+                Method vMethod = hipInstance.getClass().getMethod("v", boolean.class);
+                Object oxh = vMethod.invoke(hipInstance, true);
+                if (oxh != null) {
+                    text = oxh.toString();
+                }
+            } catch (Throwable ignored) {}
+        }
+        if (text == null || text.trim().isEmpty()) {
+            InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+            if (ims != null && ims.getCurrentInputConnection() != null) {
+                InputConnection ic = ims.getCurrentInputConnection();
+                CharSequence before = ic.getTextBeforeCursor(1000, 0);
+                CharSequence after = ic.getTextAfterCursor(1000, 0);
+                TextScope scope = findActiveSentenceScope(
+                        before == null ? "" : before.toString(),
+                        after == null ? "" : after.toString());
+                text = scope.getFullText();
+            }
+        }
+        return text;
+    }
+
+    /**
+     * Intercepts Gboard native Writing Tools proofread requests (hip.y).
+     * Replaces Google GenAI gRPC call with Yandex Speller API + Russian grammar heuristics.
+     */
+    public static Object onGetGenAiProofreadResponse(Object hipInstance, Object qrwInstance) {
+        try {
+            Context context = getContextFromHip(hipInstance);
+            if (context == null) {
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null) context = ims.getApplicationContext();
+            }
+            if (context != null) {
+                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
+                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
+                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
+                    return null; // Fallback to native Gboard AICore / Astrea inference
+                }
+            }
+
+            String textToProofread = extractTextToProofread(hipInstance, qrwInstance);
+            if (textToProofread == null || textToProofread.trim().isEmpty()) {
+                return null;
+            }
+
+            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+            Class<?> xjaClass = Class.forName("xja", true, cl);
+            final Object future = xjaClass.getDeclaredConstructor().newInstance();
+            final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            final Class<?> omqClass = Class.forName("omq", true, cl);
+            final Method zMethod = omqClass.getMethod("z");
+
+            final String text = textToProofread;
+            sExecutor.execute(() -> {
+                try {
+                    ProofreadResult result = checkTextInternal(text, false, 0, 0);
+                    String corrected = result.hasChanges ? result.correctedText : text;
+
+                    Object builder = zMethod.invoke(null);
+                    Method iMethod = builder.getClass().getMethod("i", String.class);
+                    Method aMethod = builder.getClass().getMethod("a");
+
+                    iMethod.invoke(builder, corrected);
+                    Object suggestion = aMethod.invoke(builder);
+
+                    List<Object> list = new ArrayList<>();
+                    list.add(suggestion);
+
+                    edMethod.invoke(future, list);
+                } catch (Throwable t) {
+                    logw(TAG, "Worker failed in onGetGenAiProofreadResponse", t);
+                    try {
+                        edMethod.invoke(future, Collections.emptyList());
+                    } catch (Throwable ignored) {}
+                }
+            });
+
+            return future;
+        } catch (Throwable t) {
+            logw(TAG, "Error in onGetGenAiProofreadResponse", t);
+            return null;
+        }
+    }
+
+    /**
+     * Intercepts Gboard native Writing Tools diff formatting (hip.t).
+     * Renders red strikethrough for deleted typos and green bold for added corrections/punctuation.
+     */
+    public static Spannable formatProofreadDiffSpannable(CharSequence originalSeq, CharSequence correctedSeq, int color) {
+        try {
+            if (originalSeq == null || correctedSeq == null) {
+                return null;
+            }
+            String original = originalSeq.toString();
+            String corrected = correctedSeq.toString();
+            if (original.equals(corrected)) {
+                return new SpannableString(corrected);
+            }
+            List<DiffToken> tokens = computeDiffTokens(original, corrected);
+            return GboardProofreadOverlay.formatGitDiff(tokens,
+                    Color.parseColor("#35FF5252"), Color.parseColor("#FF5252"),
+                    Color.parseColor("#354CAF50"), Color.parseColor("#4CAF50"));
+        } catch (Throwable t) {
+            logw(TAG, "Error in formatProofreadDiffSpannable", t);
+            return null;
+        }
+    }
+
+    /**
+     * Intercepts Gboard native Writing Tools rewrite/style requests (hip.z).
+     * Generates Russian stylistic variations without touching Google cloud.
+     */
+    public static Object onGetGenAiRewriteResponse(Object hipInstance, Object ompInstance, Object qrwInstance) {
+        try {
+            Context context = getContextFromHip(hipInstance);
+            if (context == null) {
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null) context = ims.getApplicationContext();
+            }
+            if (context != null) {
+                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
+                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
+                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
+                    return null;
+                }
+            }
+
+            String textToRewrite = extractTextToProofread(hipInstance, qrwInstance);
+            if (textToRewrite == null || textToRewrite.trim().isEmpty()) {
+                return null;
+            }
+
+            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+            Class<?> xjaClass = Class.forName("xja", true, cl);
+            final Object future = xjaClass.getDeclaredConstructor().newInstance();
+            final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            final Class<?> omqClass = Class.forName("omq", true, cl);
+            final Method zMethod = omqClass.getMethod("z");
+
+            final String text = textToRewrite;
+            sExecutor.execute(() -> {
+                try {
+                    ProofreadResult baseResult = checkTextInternal(text, false, 0, 0);
+                    String baseClean = baseResult.hasChanges ? baseResult.correctedText : text;
+
+                    List<String> variants = generateRussianRewriteVariants(baseClean);
+                    List<Object> list = new ArrayList<>();
+                    for (String v : variants) {
+                        if (v == null || v.trim().isEmpty()) continue;
+                        Object builder = zMethod.invoke(null);
+                        builder.getClass().getMethod("i", String.class).invoke(builder, v);
+                        list.add(builder.getClass().getMethod("a").invoke(builder));
+                    }
+
+                    if (list.isEmpty()) {
+                        Object builder = zMethod.invoke(null);
+                        builder.getClass().getMethod("i", String.class).invoke(builder, baseClean);
+                        list.add(builder.getClass().getMethod("a").invoke(builder));
+                    }
+
+                    edMethod.invoke(future, list);
+                } catch (Throwable t) {
+                    logw(TAG, "Error in onGetGenAiRewriteResponse worker", t);
+                    try {
+                        edMethod.invoke(future, Collections.emptyList());
+                    } catch (Throwable ignored) {}
+                }
+            });
+
+            return future;
+        } catch (Throwable t) {
+            logw(TAG, "Error in onGetGenAiRewriteResponse", t);
+            return null;
+        }
+    }
+
+    /**
+     * Generates multiple high quality Russian stylistic variations for the rewrite tab.
+     */
+    public static List<String> generateRussianRewriteVariants(String text) {
+        List<String> variants = new ArrayList<>();
+        if (text == null || text.trim().isEmpty()) {
+            return variants;
+        }
+        String clean = text.trim();
+
+        // 1. Formal / Polite variant
+        String formal = clean;
+        if (!formal.endsWith(".") && !formal.endsWith("!") && !formal.endsWith("?")) {
+            formal += ".";
+        }
+        variants.add(formal);
+
+        // 2. Concise variant (removes common Russian filler phrases)
+        String concise = clean.replaceAll("(?iU)\\b(в общем|так сказать|короче|собственно говоря|как бы)\\b,?\\s*", "").trim();
+        if (!concise.equals(clean) && !concise.isEmpty()) {
+            if (Character.isLowerCase(concise.charAt(0))) {
+                concise = Character.toUpperCase(concise.charAt(0)) + concise.substring(1);
+            }
+            if (!concise.endsWith(".") && !concise.endsWith("!") && !concise.endsWith("?")) {
+                concise += ".";
+            }
+            variants.add(concise);
+        }
+
+        // 3. Conversational / Expressive variant
+        String friendly = clean;
+        if (friendly.endsWith(".")) {
+            friendly = friendly.substring(0, friendly.length() - 1);
+        }
+        if (!friendly.endsWith("!") && !friendly.endsWith("?")) {
+            friendly += "!";
+        }
+        if (!friendly.equals(formal) && !variants.contains(friendly)) {
+            variants.add(friendly);
+        }
+
+        return variants;
+    }
+
     public static TextScope findActiveSentenceScope(String before, String after) {
         if (before == null) before = "";
         if (after == null) after = "";

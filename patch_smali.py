@@ -1540,3 +1540,125 @@ if os.path.exists(hno_path):
         print("Hooked Jarvis action dispatcher in hno.smali")
     else:
         print("hno.smali hook already present or not matched")
+
+
+# 11. Hook hip.smali:y(Lqrw;)Lxin; - Intercept native Writing Tools proofread call
+# 12. Hook hip.smali:t(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable; - Native card Git Diff formatting
+# 13. Hook hip.smali:z(Lomp;Lqrw;Lojz;)Lxin; - Intercept native Writing Tools rewrite/style call
+hip_path = "_decompiled/smali_classes2/hip.smali"
+if os.path.exists(hip_path):
+    with open(hip_path, "r", encoding="utf-8") as f:
+        hip_content = f.read()
+    hip_norm = hip_content.replace("\r\n", "\n")
+
+    target_hip_y = """.method public final y(Lqrw;)Lxin;
+    .locals 14
+
+    .line 1
+    iget-boolean v0, p0, Lhip;->u:Z"""
+
+    replacement_hip_y = """.method public final y(Lqrw;)Lxin;
+    .locals 14
+
+    invoke-static {p0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiProofreadResponse(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_pixelboard_hip_y_normal
+
+    check-cast v0, Lxin;
+
+    return-object v0
+
+    :cond_pixelboard_hip_y_normal
+    .line 1
+    iget-boolean v0, p0, Lhip;->u:Z"""
+
+    if "GboardProofreadService;->onGetGenAiProofreadResponse" not in hip_norm and target_hip_y in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_y, replacement_hip_y, 1)
+        print("Hooked proofread engine in hip.smali:y")
+    else:
+        print("hip.smali:y hook already present or not matched")
+
+    target_hip_t = """.method public final t(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable;
+    .locals 6
+
+    .line 1
+    iget-object v0, p0, Lhip;->w:Lgyf;"""
+
+    replacement_hip_t = """.method public final t(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable;
+    .locals 6
+
+    invoke-static {p1, p2, p3}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->formatProofreadDiffSpannable(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_pixelboard_hip_t_normal
+
+    return-object v0
+
+    :cond_pixelboard_hip_t_normal
+    .line 1
+    iget-object v0, p0, Lhip;->w:Lgyf;"""
+
+    if "GboardProofreadService;->formatProofreadDiffSpannable" not in hip_norm and target_hip_t in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_t, replacement_hip_t, 1)
+        print("Hooked Git Diff formatting in hip.smali:t")
+    else:
+        print("hip.smali:t hook already present or not matched")
+
+    target_hip_z = """.method public final z(Lomp;Lqrw;Lojz;)Lxin;
+    .locals 18
+
+    .line 1
+    move-object/from16 v1, p0
+
+    .line 2
+    .line 3
+    move-object/from16 v2, p1
+
+    .line 4
+    .line 5
+    move-object/from16 v0, p2
+
+    .line 6
+    .line 7
+    const/4 v3, 0x1"""
+
+    replacement_hip_z = """.method public final z(Lomp;Lqrw;Lojz;)Lxin;
+    .locals 18
+
+    invoke-static/range {p0 .. p2}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiRewriteResponse(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_pixelboard_hip_z_normal
+
+    check-cast v0, Lxin;
+
+    return-object v0
+
+    :cond_pixelboard_hip_z_normal
+    .line 1
+    move-object/from16 v1, p0
+
+    .line 2
+    .line 3
+    move-object/from16 v2, p1
+
+    .line 4
+    .line 5
+    move-object/from16 v0, p2
+
+    .line 6
+    .line 7
+    const/4 v3, 0x1"""
+
+    if "GboardProofreadService;->onGetGenAiRewriteResponse" not in hip_norm and target_hip_z in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_z, replacement_hip_z, 1)
+        print("Hooked rewrite engine in hip.smali:z")
+    else:
+        print("hip.smali:z hook already present or not matched")
+
+    with open(hip_path, "w", encoding="utf-8") as f:
+        f.write(hip_norm)

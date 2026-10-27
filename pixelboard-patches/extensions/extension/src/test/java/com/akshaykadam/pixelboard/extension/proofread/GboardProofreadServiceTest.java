@@ -128,4 +128,26 @@ public class GboardProofreadServiceTest {
         assertEquals(GboardProofreadService.DiffType.UNCHANGED, tokens.get(0).type);
         assertEquals(s, tokens.get(0).text);
     }
+
+    @Test
+    public void testGenerateRussianRewriteVariants() {
+        String input = "Привет, в общем как дела";
+        List<String> variants = GboardProofreadService.generateRussianRewriteVariants(input);
+        assertNotNull(variants);
+        assertTrue(variants.size() >= 2);
+
+        boolean hasPeriod = false;
+        boolean hasExclamation = false;
+        boolean hasConciseWithoutFiller = false;
+
+        for (String v : variants) {
+            if (v.endsWith(".")) hasPeriod = true;
+            if (v.endsWith("!")) hasExclamation = true;
+            if (!v.contains("в общем")) hasConciseWithoutFiller = true;
+        }
+
+        assertTrue(hasPeriod);
+        assertTrue(hasExclamation);
+        assertTrue(hasConciseWithoutFiller);
+    }
 }
