@@ -164,7 +164,13 @@ public final class GboardProofreadService {
             return false;
         }
         try {
-            View targetView = GboardProofreadButton.getAttachedParent();
+            View targetView = null;
+            if (caller instanceof View) {
+                targetView = (View) caller;
+            }
+            if (targetView == null) {
+                targetView = GboardProofreadButton.getAttachedParent();
+            }
             if (targetView == null && caller != null) {
                 try {
                     Object obr = null;
@@ -218,6 +224,7 @@ public final class GboardProofreadService {
                 }
 
                 // If 4-squares menu or a subview is open, return to main typing keyboard
+                boolean clickedBack = false;
                 try {
                     View root = targetView.getRootView();
                     if (root != null) {
@@ -227,6 +234,7 @@ public final class GboardProofreadService {
                             View backBtn = root.findViewById(backId);
                             if (backBtn != null && backBtn.getVisibility() == View.VISIBLE) {
                                 backBtn.performClick();
+                                clickedBack = true;
                             }
                         }
                     }
@@ -235,7 +243,11 @@ public final class GboardProofreadService {
 
                 // For Yandex Speller (and by default): run full Yandex Speller + Russian grammar with Git Diff card
                 final View finalView = targetView;
-                getMainHandler().post(() -> checkAndShowDiff(finalView));
+                if (clickedBack) {
+                    getMainHandler().postDelayed(() -> checkAndShowDiff(finalView), 100);
+                } else {
+                    getMainHandler().post(() -> checkAndShowDiff(finalView));
+                }
                 return true;
             }
         } catch (Throwable t) {
@@ -599,21 +611,21 @@ public final class GboardProofreadService {
         String res = text.trim();
 
         // 1. Hyphenated prepositions and unambiguous stable adverbs
-        res = res.replaceAll("(?i)\\b(из)\\s+(за)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(из)\\s+(под)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
-        res = res.replaceAll("(?i)\\b(так)\\s+(таки)\\b", "так-таки");
-        res = res.replaceAll("(?i)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
-        res = res.replaceAll("(?i)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
-        res = res.replaceAll("(?i)\\b(едва)\\s+(едва)\\b", "едва-едва");
-        res = res.replaceAll("(?i)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
-        res = res.replaceAll("(?i)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(из)\\s+(за)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(из)\\s+(под)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
+        res = res.replaceAll("(?iU)\\b(так)\\s+(таки)\\b", "так-таки");
+        res = res.replaceAll("(?iU)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
+        res = res.replaceAll("(?iU)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
+        res = res.replaceAll("(?iU)\\b(едва)\\s+(едва)\\b", "едва-едва");
+        res = res.replaceAll("(?iU)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
+        res = res.replaceAll("(?iU)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
 
         // Particles -то, -нибудь, -либо
-        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
-        res = res.replaceAll("(?i)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
+        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
 
         // 2. Compound conjunctions (must be executed before single conjunctions)
         String[] compoundConjunctions = new String[] {
@@ -623,53 +635,54 @@ public final class GboardProofreadService {
                 "перед тем как", "после того как", "в связи с тем что", "благодаря тому что"
         };
         for (String conj : compoundConjunctions) {
-            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
         }
 
         // 3. Opposing & coordinating conjunctions (indisputable comma rules)
-        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
-        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
+        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
+        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
 
         // 4. Subordinate conjunctions & relative words
         String[] subordinateConjunctions = new String[] {
-                "чтобы", "чтоб", "хотя",
+                "чтобы", "чтоб", "хотя", "где", "куда", "откуда", "когда",
                 "который", "которая", "которое", "которые", "которого", "которой", "которому",
                 "которым", "которую", "которых", "которыми"
         };
         for (String conj : subordinateConjunctions) {
-            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
         }
 
         // Subordinate "что"
-        res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
+        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
         // Revert false comma splits around specific idioms:
-        res = res.replaceAll("(?i),\\s*потому,\\s*что\\b", ", потому что");
-        res = res.replaceAll("(?i)\\bпотому,\\s*что\\b", "потому что");
-        res = res.replaceAll("(?i),\\s*только,\\s*что\\b", ", только что");
-        res = res.replaceAll("(?i)\\bтолько,\\s*что\\b", "только что");
-        res = res.replaceAll("(?i),\\s*разве,\\s*что\\b", ", разве что");
-        res = res.replaceAll("(?i)\\bразве,\\s*что\\b", "разве что");
-        res = res.replaceAll("(?i),\\s*кое,\\s*что\\b", "кое-что");
-        res = res.replaceAll("(?i)\\bкое,\\s*что\\b", "кое-что");
+        res = res.replaceAll("(?iU),\\s*потому,\\s*что\\b", ", потому что");
+        res = res.replaceAll("(?iU)\\bпотому,\\s*что\\b", "потому что");
+        res = res.replaceAll("(?iU),\\s*только,\\s*что\\b", ", только что");
+        res = res.replaceAll("(?iU)\\bтолько,\\s*что\\b", "только что");
+        res = res.replaceAll("(?iU),\\s*разве,\\s*что\\b", ", разве что");
+        res = res.replaceAll("(?iU)\\bразве,\\s*что\\b", "разве что");
+        res = res.replaceAll("(?iU),\\s*кое,\\s*что\\b", "кое-что");
+        res = res.replaceAll("(?iU)\\bкое,\\s*что\\b", "кое-что");
 
         // 5. Introductory words - only unambiguous modal words
         String[] introWords = new String[] {
                 "конечно", "кстати", "например", "к счастью", "к сожалению",
+                "в общем",
                 "между прочим", "разумеется", "безусловно",
                 "во-первых", "во-вторых", "в-третьих", "следовательно", "таким образом"
         };
         for (String iw : introWords) {
             // At start of sentence, followed by words
-            res = res.replaceAll("(?i)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
+            res = res.replaceAll("(?iU)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
             // In middle of sentence, followed by words
-            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
+            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
             // At end of sentence or before punctuation: comma only before the introductory word, never after!
-            res = res.replaceAll("(?i)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
+            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
         }
 
         // Idioms that must NOT have commas
-        res = res.replaceAll("(?i),\\s*не\\s+за,\\s*что\\b", " не за что");
-        res = res.replaceAll("(?i)\\bне\\s+за,\\s*что\\b", "не за что");
+        res = res.replaceAll("(?iU),\\s*не\\s+за,\\s*что\\b", " не за что");
+        res = res.replaceAll("(?iU)\\bне\\s+за,\\s*что\\b", "не за что");
 
         // 6. Typographic spacing and punctuation cleanup
         res = res.replaceAll("[ \\t]{2,}", " ");
@@ -696,6 +709,11 @@ public final class GboardProofreadService {
             }
         }
         res = capitalized.toString();
+
+        // 8. Question mark for interrogative sentences ending without punctuation (excluding indefinite -то/-нибудь)
+        if (res.matches("(?iU)^(почему|зачем|как|когда|где|куда|откуда|кто|что|сколько|какой|какая|какое|какие)\\b(?!-(то|нибудь|либо)).*[^.!?]$")) {
+            res = res + "?";
+        }
 
         // Reattach leading and trailing whitespace
         String prefix = text.substring(0, startSpaces);
