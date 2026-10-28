@@ -456,12 +456,34 @@ public final class GboardProofreadService {
 
             String textToRewrite = extractTextToProofread(hipInstance, qrwInstance);
             if (textToRewrite == null || textToRewrite.trim().isEmpty()) {
-                return null;
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null && ims.getCurrentInputConnection() != null) {
+                    CharSequence before = ims.getCurrentInputConnection().getTextBeforeCursor(1000, 0);
+                    if (before != null && before.length() > 0) {
+                        textToRewrite = before.toString();
+                    }
+                }
+            }
+
+            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+            Class<?> xjaClass = Class.forName("xja", true, cl);
+            final Object future = xjaClass.getDeclaredConstructor().newInstance();
+            final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            final Class<?> omqClass = Class.forName("omq", true, cl);
+            final Method zMethod = omqClass.getMethod("z");
+
+            if (textToRewrite == null || textToRewrite.trim().isEmpty()) {
+                Object builder = zMethod.invoke(null);
+                builder.getClass().getMethod("i", String.class).invoke(builder, "");
+                Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                List<Object> list = new ArrayList<>();
+                list.add(suggestion);
+                edMethod.invoke(future, toImmutableList(cl, list));
+                return future;
             }
 
             sLastOriginalText = textToRewrite;
-
-            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
 
             // Ensure hip.x is populated so hpb.A() returns the original text
             if (hipInstance != null) {
@@ -480,10 +502,6 @@ public final class GboardProofreadService {
                 }
             }
 
-            Class<?> xjaClass = Class.forName("xja", true, cl);
-            final Object future = xjaClass.getDeclaredConstructor().newInstance();
-            final Method edMethod = xjaClass.getMethod("ed", Object.class);
-
             if (hipInstance != null) {
                 try {
                     Field yField = hipInstance.getClass().getDeclaredField("y");
@@ -493,9 +511,6 @@ public final class GboardProofreadService {
                     logw(TAG, "Failed to set hip.y in rewrite", t);
                 }
             }
-
-            final Class<?> omqClass = Class.forName("omq", true, cl);
-            final Method zMethod = omqClass.getMethod("z");
 
             final String text = textToRewrite;
             sExecutor.execute(() -> {
