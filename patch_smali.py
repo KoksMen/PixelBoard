@@ -1662,3 +1662,210 @@ if os.path.exists(hip_path):
 
     with open(hip_path, "w", encoding="utf-8") as f:
         f.write(hip_norm)
+
+
+# 14. Patch gjl.smali:ab()Z and ac(Z)Z to bypass Google Cloud GenAi eligibility checks
+gjl_path = "_decompiled/smali_classes3/gjl.smali"
+if os.path.exists(gjl_path):
+    with open(gjl_path, "r", encoding="utf-8") as f:
+        gjl_content = f.read()
+    gjl_norm = gjl_content.replace("\r\n", "\n")
+
+    target_gjl_ab = """.method public static ab()Z
+    .locals 1
+
+    .line 1
+    invoke-static {}, Lojm;->c()Lojm;
+
+    .line 2
+    .line 3
+    .line 4
+    move-result-object v0
+
+    .line 5
+    invoke-virtual {v0}, Lojm;->a()Loiz;
+
+    .line 6
+    .line 7
+    .line 8
+    move-result-object v0
+
+    .line 9
+    invoke-virtual {v0}, Loiz;->b()Z
+
+    .line 10
+    .line 11
+    .line 12
+    move-result v0
+
+    .line 13
+    return v0
+.end method"""
+
+    replacement_gjl_ab = """.method public static ab()Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+
+    if target_gjl_ab in gjl_norm:
+        gjl_norm = gjl_norm.replace(target_gjl_ab, replacement_gjl_ab, 1)
+        print("Patched gjl.smali:ab() to return true")
+    else:
+        print("gjl.smali:ab() already patched or not matched")
+
+    target_gjl_ac = """.method public static ac(Z)Z
+    .locals 1
+
+    .line 1
+    invoke-static {}, Lojm;->c()Lojm;
+
+    .line 2
+    .line 3
+    .line 4
+    move-result-object v0
+
+    .line 5
+    invoke-virtual {v0}, Lojm;->j()Z
+
+    .line 6
+    .line 7
+    .line 8
+    move-result v0
+
+    .line 9
+    if-eqz v0, :cond_1
+
+    .line 10
+    .line 11
+    if-eqz p0, :cond_0
+
+    .line 12
+    .line 13
+    goto :goto_0
+
+    .line 14
+    :cond_0
+    const/4 p0, 0x0
+
+    .line 15
+    return p0
+
+    .line 16
+    :cond_1
+    :goto_0
+    const/4 p0, 0x1
+
+    .line 17
+    return p0
+.end method"""
+
+    replacement_gjl_ac = """.method public static ac(Z)Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+
+    if target_gjl_ac in gjl_norm:
+        gjl_norm = gjl_norm.replace(target_gjl_ac, replacement_gjl_ac, 1)
+        print("Patched gjl.smali:ac(Z) to return true")
+    else:
+        print("gjl.smali:ac(Z) already patched or not matched")
+
+    with open(gjl_path, "w", encoding="utf-8") as f:
+        f.write(gjl_norm)
+
+
+# 15. Patch hny.smali:c(Landroid/content/Context;)V to neuter "Writing tools unavailable" popup/toast
+hny_path = "_decompiled/smali_classes3/hny.smali"
+if os.path.exists(hny_path):
+    with open(hny_path, "r", encoding="utf-8") as f:
+        hny_content = f.read()
+    hny_norm = hny_content.replace("\r\n", "\n")
+
+    c_sig = ".method public static c(Landroid/content/Context;)V"
+    if c_sig in hny_norm:
+        c_idx = hny_norm.find(c_sig)
+        end_idx = hny_norm.find(".end method", c_idx) + len(".end method")
+        old_c_method = hny_norm[c_idx:end_idx]
+        new_c_method = """.method public static c(Landroid/content/Context;)V
+    .locals 0
+
+    return-void
+.end method"""
+        if old_c_method != new_c_method:
+            hny_norm = hny_norm[:c_idx] + new_c_method + hny_norm[end_idx:]
+            print("Patched hny.smali:c() to return-void")
+            with open(hny_path, "w", encoding="utf-8") as f:
+                f.write(hny_norm)
+        else:
+            print("hny.smali:c() already patched")
+
+
+# 16. Patch ijd.smali:L(Ljava/lang/Runnable;)Z to bypass aicore_not_working_toast
+ijd_path = "_decompiled/smali_classes3/ijd.smali"
+if os.path.exists(ijd_path):
+    with open(ijd_path, "r", encoding="utf-8") as f:
+        ijd_content = f.read()
+    ijd_norm = ijd_content.replace("\r\n", "\n")
+
+    l_sig = ".method private final L(Ljava/lang/Runnable;)Z"
+    if l_sig in ijd_norm:
+        l_idx = ijd_norm.find(l_sig)
+        end_idx = ijd_norm.find(".end method", l_idx) + len(".end method")
+        old_l_method = ijd_norm[l_idx:end_idx]
+        new_l_method = """.method private final L(Ljava/lang/Runnable;)Z
+    .locals 1
+
+    const/4 v0, 0x0
+
+    return v0
+.end method"""
+        if old_l_method != new_l_method:
+            ijd_norm = ijd_norm[:l_idx] + new_l_method + ijd_norm[end_idx:]
+            print("Patched ijd.smali:L() to return false (0)")
+            with open(ijd_path, "w", encoding="utf-8") as f:
+                f.write(ijd_norm)
+        else:
+            print("ijd.smali:L() already patched")
+
+
+# 17. Patch qeq.smali:e(Lqem;)Z to unconditionally enable qrr.g (Writing Tools Phenotype flag)
+qeq_path = "_decompiled/smali_classes2/qeq.smali"
+if os.path.exists(qeq_path):
+    with open(qeq_path, "r", encoding="utf-8") as f:
+        qeq_content = f.read()
+    qeq_norm = qeq_content.replace("\r\n", "\n")
+
+    target_qeq_e = """.method public static e(Lqem;)Z
+    .locals 2
+
+    .line 1
+    invoke-static {}, Lqew;->b()Lqew;"""
+
+    replacement_qeq_e = """.method public static e(Lqem;)Z
+    .locals 2
+
+    sget-object v0, Lqrr;->g:Lqem;
+
+    if-ne p0, v0, :cond_pixelboard_qeq_e_normal
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_pixelboard_qeq_e_normal
+    .line 1
+    invoke-static {}, Lqew;->b()Lqew;"""
+
+    if "cond_pixelboard_qeq_e_normal" not in qeq_norm and target_qeq_e in qeq_norm:
+        qeq_norm = qeq_norm.replace(target_qeq_e, replacement_qeq_e, 1)
+        print("Patched qeq.smali:e() for qrr.g flag")
+        with open(qeq_path, "w", encoding="utf-8") as f:
+            f.write(qeq_norm)
+    else:
+        print("qeq.smali:e() already patched or not matched")
