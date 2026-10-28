@@ -56,6 +56,9 @@ public final class GboardProofreadService {
     private static Handler sMainHandler;
     private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor();
 
+    public static volatile String sLastOriginalText = null;
+    public static volatile String sLastCorrectedText = null;
+
     private static void logw(String tag, String msg) {
         try {
             Log.w(tag, msg);
@@ -264,6 +267,40 @@ public final class GboardProofreadService {
         }
     }
 
+    /**
+     * Filters out characters spanned by StrikethroughSpan from the Git Diff Spannable
+     * so only the clean corrected text is committed to the editor.
+     */
+    public static CharSequence filterCommitText(CharSequence seq) {
+        if (seq == null) {
+            return null;
+        }
+        if (!(seq instanceof android.text.Spanned)) {
+            return seq;
+        }
+        android.text.Spanned spanned = (android.text.Spanned) seq;
+        android.text.style.StrikethroughSpan[] strikeSpans =
+                spanned.getSpans(0, spanned.length(), android.text.style.StrikethroughSpan.class);
+        if (strikeSpans == null || strikeSpans.length == 0) {
+            return seq;
+        }
+        boolean[] struck = new boolean[spanned.length()];
+        for (android.text.style.StrikethroughSpan span : strikeSpans) {
+            int start = Math.max(0, spanned.getSpanStart(span));
+            int end = Math.min(spanned.length(), spanned.getSpanEnd(span));
+            for (int i = start; i < end; i++) {
+                struck[i] = true;
+            }
+        }
+        StringBuilder clean = new StringBuilder(spanned.length());
+        for (int i = 0; i < spanned.length(); i++) {
+            if (!struck[i]) {
+                clean.append(spanned.charAt(i));
+            }
+        }
+        return clean.toString();
+    }
+
     public static Object onGetGenAiProofreadResponse(Object hipInstance, Object qrwInstance) {
         try {
             Context context = getContextFromHip(hipInstance);
@@ -271,24 +308,46 @@ public final class GboardProofreadService {
                 InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
                 if (ims != null) context = ims.getApplicationContext();
             }
-            if (context != null) {
-                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
-                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
-                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
-                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
-                    return null; // Fallback to native Gboard AICore / Astrea inference
-                }
-            }
 
             String textToProofread = extractTextToProofread(hipInstance, qrwInstance);
             if (textToProofread == null || textToProofread.trim().isEmpty()) {
                 return null;
             }
 
+            sLastOriginalText = textToProofread;
+
             ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+
+            // Ensure hip.x is populated so hpb.A() returns the original text to hjc/hiv
+            if (hipInstance != null) {
+                try {
+                    Field xField = hipInstance.getClass().getDeclaredField("x");
+                    xField.setAccessible(true);
+                    Object curX = xField.get(hipInstance);
+                    if (curX == null) {
+                        Class<?> oxhClass = Class.forName("oxh", true, cl);
+                        Method hMethod = oxhClass.getMethod("h", CharSequence.class, int.class);
+                        Object oxh = hMethod.invoke(null, textToProofread, 0);
+                        xField.set(hipInstance, oxh);
+                    }
+                } catch (Throwable t) {
+                    logw(TAG, "Failed to ensure hip.x in proofread", t);
+                }
+            }
+
             Class<?> xjaClass = Class.forName("xja", true, cl);
             final Object future = xjaClass.getDeclaredConstructor().newInstance();
             final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            if (hipInstance != null) {
+                try {
+                    Field yField = hipInstance.getClass().getDeclaredField("y");
+                    yField.setAccessible(true);
+                    yField.set(hipInstance, future);
+                } catch (Throwable t) {
+                    logw(TAG, "Failed to set hip.y in proofread", t);
+                }
+            }
 
             final Class<?> omqClass = Class.forName("omq", true, cl);
             final Method zMethod = omqClass.getMethod("z");
@@ -298,12 +357,18 @@ public final class GboardProofreadService {
                 try {
                     ProofreadResult result = checkTextInternal(text, false, 0, 0);
                     String corrected = result.hasChanges ? result.correctedText : text;
+                    sLastCorrectedText = corrected;
 
                     Object builder = zMethod.invoke(null);
                     Method iMethod = builder.getClass().getMethod("i", String.class);
                     Method aMethod = builder.getClass().getMethod("a");
 
                     iMethod.invoke(builder, corrected);
+                    try {
+                        Method hMethod = builder.getClass().getMethod("h", String.class);
+                        hMethod.invoke(builder, text);
+                    } catch (Throwable ignored) {}
+
                     Object suggestion = aMethod.invoke(builder);
 
                     List<Object> list = new ArrayList<>();
@@ -333,12 +398,13 @@ public final class GboardProofreadService {
      */
     public static Spannable formatProofreadDiffSpannable(CharSequence originalSeq, CharSequence correctedSeq, int color) {
         try {
-            if (originalSeq == null || correctedSeq == null) {
+            String original = (originalSeq != null && originalSeq.length() > 0) ? originalSeq.toString() : sLastOriginalText;
+            String corrected = (correctedSeq != null && correctedSeq.length() > 0) ? correctedSeq.toString() : sLastCorrectedText;
+
+            if (corrected == null) {
                 return null;
             }
-            String original = originalSeq.toString();
-            String corrected = correctedSeq.toString();
-            if (original.equals(corrected)) {
+            if (original == null || original.isEmpty() || original.equals(corrected)) {
                 return new SpannableString(corrected);
             }
             List<DiffToken> tokens = computeDiffTokens(original, corrected);
@@ -362,24 +428,46 @@ public final class GboardProofreadService {
                 InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
                 if (ims != null) context = ims.getApplicationContext();
             }
-            if (context != null) {
-                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
-                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
-                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
-                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)) {
-                    return null;
-                }
-            }
 
             String textToRewrite = extractTextToProofread(hipInstance, qrwInstance);
             if (textToRewrite == null || textToRewrite.trim().isEmpty()) {
                 return null;
             }
 
+            sLastOriginalText = textToRewrite;
+
             ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+
+            // Ensure hip.x is populated so hpb.A() returns the original text
+            if (hipInstance != null) {
+                try {
+                    Field xField = hipInstance.getClass().getDeclaredField("x");
+                    xField.setAccessible(true);
+                    Object curX = xField.get(hipInstance);
+                    if (curX == null) {
+                        Class<?> oxhClass = Class.forName("oxh", true, cl);
+                        Method hMethod = oxhClass.getMethod("h", CharSequence.class, int.class);
+                        Object oxh = hMethod.invoke(null, textToRewrite, 0);
+                        xField.set(hipInstance, oxh);
+                    }
+                } catch (Throwable t) {
+                    logw(TAG, "Failed to ensure hip.x in rewrite", t);
+                }
+            }
+
             Class<?> xjaClass = Class.forName("xja", true, cl);
             final Object future = xjaClass.getDeclaredConstructor().newInstance();
             final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            if (hipInstance != null) {
+                try {
+                    Field yField = hipInstance.getClass().getDeclaredField("y");
+                    yField.setAccessible(true);
+                    yField.set(hipInstance, future);
+                } catch (Throwable t) {
+                    logw(TAG, "Failed to set hip.y in rewrite", t);
+                }
+            }
 
             final Class<?> omqClass = Class.forName("omq", true, cl);
             final Method zMethod = omqClass.getMethod("z");
@@ -396,12 +484,18 @@ public final class GboardProofreadService {
                         if (v == null || v.trim().isEmpty()) continue;
                         Object builder = zMethod.invoke(null);
                         builder.getClass().getMethod("i", String.class).invoke(builder, v);
+                        try {
+                            builder.getClass().getMethod("h", String.class).invoke(builder, text);
+                        } catch (Throwable ignored) {}
                         list.add(builder.getClass().getMethod("a").invoke(builder));
                     }
 
                     if (list.isEmpty()) {
                         Object builder = zMethod.invoke(null);
                         builder.getClass().getMethod("i", String.class).invoke(builder, baseClean);
+                        try {
+                            builder.getClass().getMethod("h", String.class).invoke(builder, text);
+                        } catch (Throwable ignored) {}
                         list.add(builder.getClass().getMethod("a").invoke(builder));
                     }
 

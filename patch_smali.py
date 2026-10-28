@@ -1545,6 +1545,7 @@ if os.path.exists(hno_path):
 # 11. Hook hip.smali:y(Lqrw;)Lxin; - Intercept native Writing Tools proofread call
 # 12. Hook hip.smali:t(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable; - Native card Git Diff formatting
 # 13. Hook hip.smali:z(Lomp;Lqrw;Lojz;)Lxin; - Intercept native Writing Tools rewrite/style call
+# 13.1 Hook hip.smali:R(Ljava/lang/CharSequence;Ljava/lang/String;ILomp;)V - Clean Git Diff strikethrough before commit
 hip_path = "_decompiled/smali_classes2/hip.smali"
 if os.path.exists(hip_path):
     with open(hip_path, "r", encoding="utf-8") as f:
@@ -1557,7 +1558,7 @@ if os.path.exists(hip_path):
     .line 1
     iget-boolean v0, p0, Lhip;->u:Z"""
 
-    replacement_hip_y = """.method public final y(Lqrw;)Lxin;
+    target_hip_y_v1 = """.method public final y(Lqrw;)Lxin;
     .locals 14
 
     invoke-static {p0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiProofreadResponse(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
@@ -1568,17 +1569,39 @@ if os.path.exists(hip_path):
 
     check-cast v0, Lxin;
 
-    return-object v0
+    return-object v0"""
 
-    :cond_pixelboard_hip_y_normal
-    .line 1
-    iget-boolean v0, p0, Lhip;->u:Z"""
+    replacement_hip_y = """.method public final y(Lqrw;)Lxin;
+    .locals 14
 
-    if "GboardProofreadService;->onGetGenAiProofreadResponse" not in hip_norm and target_hip_y in hip_norm:
-        hip_norm = hip_norm.replace(target_hip_y, replacement_hip_y, 1)
-        print("Hooked proofread engine in hip.smali:y")
+    const/4 v0, 0x1
+
+    invoke-virtual {p0, v0}, Lhip;->v(Z)Loxh;
+
+    move-result-object v0
+
+    iput-object v0, p0, Lhip;->x:Loxh;
+
+    invoke-static {p0, p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiProofreadResponse(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_pixelboard_hip_y_normal
+
+    check-cast v0, Lxin;
+
+    iput-object v0, p0, Lhip;->y:Lxin;
+
+    return-object v0"""
+
+    if target_hip_y_v1 in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_y_v1, replacement_hip_y, 1)
+        print("Updated proofread engine hook in hip.smali:y with x/y persistence")
+    elif "hip.v(Z)Loxh;" not in hip_norm and target_hip_y in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_y, replacement_hip_y + "\n\n    :cond_pixelboard_hip_y_normal\n    .line 1\n    iget-boolean v0, p0, Lhip;->u:Z", 1)
+        print("Hooked proofread engine in hip.smali:y with x/y persistence")
     else:
-        print("hip.smali:y hook already present or not matched")
+        print("hip.smali:y hook already up to date")
 
     target_hip_t = """.method public final t(Ljava/lang/CharSequence;Ljava/lang/CharSequence;I)Landroid/text/Spannable;
     .locals 6
@@ -1625,7 +1648,7 @@ if os.path.exists(hip_path):
     .line 7
     const/4 v3, 0x1"""
 
-    replacement_hip_z = """.method public final z(Lomp;Lqrw;Lojz;)Lxin;
+    target_hip_z_v1 = """.method public final z(Lomp;Lqrw;Lojz;)Lxin;
     .locals 18
 
     invoke-static/range {p0 .. p2}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiRewriteResponse(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
@@ -1636,33 +1659,71 @@ if os.path.exists(hip_path):
 
     check-cast v0, Lxin;
 
-    return-object v0
+    return-object v0"""
 
-    :cond_pixelboard_hip_z_normal
-    .line 1
+    replacement_hip_z = """.method public final z(Lomp;Lqrw;Lojz;)Lxin;
+    .locals 18
+
     move-object/from16 v1, p0
 
-    .line 2
-    .line 3
     move-object/from16 v2, p1
 
-    .line 4
-    .line 5
     move-object/from16 v0, p2
 
-    .line 6
-    .line 7
-    const/4 v3, 0x1"""
+    const/4 v3, 0x1
 
-    if "GboardProofreadService;->onGetGenAiRewriteResponse" not in hip_norm and target_hip_z in hip_norm:
-        hip_norm = hip_norm.replace(target_hip_z, replacement_hip_z, 1)
-        print("Hooked rewrite engine in hip.smali:z")
+    invoke-virtual {v1, v3}, Lhip;->v(Z)Loxh;
+
+    move-result-object v3
+
+    iput-object v3, v1, Lhip;->x:Loxh;
+
+    invoke-static {v1, v2, v0}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->onGetGenAiRewriteResponse(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v3
+
+    if-eqz v3, :cond_pixelboard_hip_z_normal
+
+    check-cast v3, Lxin;
+
+    iput-object v3, v1, Lhip;->y:Lxin;
+
+    return-object v3"""
+
+    if target_hip_z_v1 in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_z_v1, replacement_hip_z, 1)
+        print("Updated rewrite engine hook in hip.smali:z with x/y persistence")
+    elif "hip.v(Z)Loxh;" not in hip_norm and target_hip_z in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_z, replacement_hip_z + "\n\n    :cond_pixelboard_hip_z_normal\n    .line 1\n    .line 2\n    .line 3\n    .line 4\n    .line 5\n    .line 6\n    .line 7\n    const/4 v3, 0x1", 1)
+        print("Hooked rewrite engine in hip.smali:z with x/y persistence")
     else:
-        print("hip.smali:z hook already present or not matched")
+        print("hip.smali:z hook already up to date")
+
+    # 13.1 Hook hip.smali:R - Clean Git Diff strikethrough before committing text
+    target_hip_R = """.method public final R(Ljava/lang/CharSequence;Ljava/lang/String;ILomp;)V
+    .locals 7
+
+    .line 1
+    iget-object v0, p0, Lhip;->w:Lgyf;"""
+
+    replacement_hip_R = """.method public final R(Ljava/lang/CharSequence;Ljava/lang/String;ILomp;)V
+    .locals 7
+
+    invoke-static {p1}, Lcom/akshaykadam/pixelboard/extension/proofread/GboardProofreadService;->filterCommitText(Ljava/lang/CharSequence;)Ljava/lang/CharSequence;
+
+    move-result-object p1
+
+    .line 1
+    iget-object v0, p0, Lhip;->w:Lgyf;"""
+
+    if "GboardProofreadService;->filterCommitText" not in hip_norm and target_hip_R in hip_norm:
+        hip_norm = hip_norm.replace(target_hip_R, replacement_hip_R, 1)
+        print("Hooked filterCommitText in hip.smali:R")
+    else:
+        print("hip.smali:R hook already present or not matched")
 
     with open(hip_path, "w", encoding="utf-8") as f:
         f.write(hip_norm)
-
 
 # 14. Patch gjl.smali:ab()Z and ac(Z)Z to bypass Google Cloud GenAi eligibility checks
 gjl_path = "_decompiled/smali_classes3/gjl.smali"
