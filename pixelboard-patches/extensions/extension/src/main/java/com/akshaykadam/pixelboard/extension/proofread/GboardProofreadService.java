@@ -276,6 +276,12 @@ public final class GboardProofreadService {
             return null;
         }
         if (!(seq instanceof android.text.Spanned)) {
+            if (sLastCorrectedText != null && !sLastCorrectedText.isEmpty()) {
+                String str = seq.toString();
+                if (sLastOriginalText != null && str.equals(sLastOriginalText + sLastCorrectedText)) {
+                    return sLastCorrectedText;
+                }
+            }
             return seq;
         }
         android.text.Spanned spanned = (android.text.Spanned) seq;
@@ -311,12 +317,34 @@ public final class GboardProofreadService {
 
             String textToProofread = extractTextToProofread(hipInstance, qrwInstance);
             if (textToProofread == null || textToProofread.trim().isEmpty()) {
-                return null;
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null && ims.getCurrentInputConnection() != null) {
+                    CharSequence before = ims.getCurrentInputConnection().getTextBeforeCursor(1000, 0);
+                    if (before != null && before.length() > 0) {
+                        textToProofread = before.toString();
+                    }
+                }
+            }
+
+            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
+            Class<?> xjaClass = Class.forName("xja", true, cl);
+            final Object future = xjaClass.getDeclaredConstructor().newInstance();
+            final Method edMethod = xjaClass.getMethod("ed", Object.class);
+
+            final Class<?> omqClass = Class.forName("omq", true, cl);
+            final Method zMethod = omqClass.getMethod("z");
+
+            if (textToProofread == null || textToProofread.trim().isEmpty()) {
+                Object builder = zMethod.invoke(null);
+                builder.getClass().getMethod("i", String.class).invoke(builder, "");
+                Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                List<Object> list = new ArrayList<>();
+                list.add(suggestion);
+                edMethod.invoke(future, toImmutableList(cl, list));
+                return future;
             }
 
             sLastOriginalText = textToProofread;
-
-            ClassLoader cl = hipInstance != null ? hipInstance.getClass().getClassLoader() : GboardProofreadService.class.getClassLoader();
 
             // Ensure hip.x is populated so hpb.A() returns the original text to hjc/hiv
             if (hipInstance != null) {
@@ -335,10 +363,6 @@ public final class GboardProofreadService {
                 }
             }
 
-            Class<?> xjaClass = Class.forName("xja", true, cl);
-            final Object future = xjaClass.getDeclaredConstructor().newInstance();
-            final Method edMethod = xjaClass.getMethod("ed", Object.class);
-
             if (hipInstance != null) {
                 try {
                     Field yField = hipInstance.getClass().getDeclaredField("y");
@@ -348,9 +372,6 @@ public final class GboardProofreadService {
                     logw(TAG, "Failed to set hip.y in proofread", t);
                 }
             }
-
-            final Class<?> omqClass = Class.forName("omq", true, cl);
-            final Method zMethod = omqClass.getMethod("z");
 
             final String text = textToProofread;
             sExecutor.execute(() -> {
@@ -379,8 +400,12 @@ public final class GboardProofreadService {
                 } catch (Throwable t) {
                     logw(TAG, "Worker failed in onGetGenAiProofreadResponse", t);
                     try {
-                        Object emptyImmutable = toImmutableList(cl, Collections.emptyList());
-                        edMethod.invoke(future, emptyImmutable);
+                        Object builder = zMethod.invoke(null);
+                        builder.getClass().getMethod("i", String.class).invoke(builder, text != null ? text : "");
+                        Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                        List<Object> list = new ArrayList<>();
+                        list.add(suggestion);
+                        edMethod.invoke(future, toImmutableList(cl, list));
                     } catch (Throwable ignored) {}
                 }
             });
@@ -504,8 +529,12 @@ public final class GboardProofreadService {
                 } catch (Throwable t) {
                     logw(TAG, "Error in onGetGenAiRewriteResponse worker", t);
                     try {
-                        Object emptyImmutable = toImmutableList(cl, Collections.emptyList());
-                        edMethod.invoke(future, emptyImmutable);
+                        Object builder = zMethod.invoke(null);
+                        builder.getClass().getMethod("i", String.class).invoke(builder, text != null ? text : "");
+                        Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                        List<Object> list = new ArrayList<>();
+                        list.add(suggestion);
+                        edMethod.invoke(future, toImmutableList(cl, list));
                     } catch (Throwable ignored) {}
                 }
             });
@@ -535,7 +564,7 @@ public final class GboardProofreadService {
         variants.add(formal);
 
         // 2. Concise variant (removes common Russian filler phrases)
-        String concise = clean.replaceAll("(?iU)\\b(в общем|так сказать|короче|собственно говоря|как бы)\\b,?\\s*", "").trim();
+        String concise = clean.replaceAll("(?iu)\\b(в общем|так сказать|короче|собственно говоря|как бы)\\b,?\\s*", "").trim();
         if (!concise.equals(clean) && !concise.isEmpty()) {
             if (Character.isLowerCase(concise.charAt(0))) {
                 concise = Character.toUpperCase(concise.charAt(0)) + concise.substring(1);
@@ -896,7 +925,7 @@ public final class GboardProofreadService {
         if (text == null || text.trim().isEmpty()) {
             return text;
         }
-
+        try {
         // Preserve leading and trailing whitespace
         int startSpaces = 0;
         while (startSpaces < text.length() && Character.isWhitespace(text.charAt(startSpaces))) {
@@ -910,21 +939,21 @@ public final class GboardProofreadService {
         String res = text.trim();
 
         // 1. Hyphenated prepositions and unambiguous stable adverbs
-        res = res.replaceAll("(?iU)\\b(из)\\s+(за)\\b", "$1-$2");
-        res = res.replaceAll("(?iU)\\b(из)\\s+(под)\\b", "$1-$2");
-        res = res.replaceAll("(?iU)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
-        res = res.replaceAll("(?iU)\\b(так)\\s+(таки)\\b", "так-таки");
-        res = res.replaceAll("(?iU)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
-        res = res.replaceAll("(?iU)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
-        res = res.replaceAll("(?iU)\\b(едва)\\s+(едва)\\b", "едва-едва");
-        res = res.replaceAll("(?iU)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
-        res = res.replaceAll("(?iU)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
-        res = res.replaceAll("(?iU)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(из)\\s+(за)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(из)\\s+(под)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
+        res = res.replaceAll("(?iu)\\b(так)\\s+(таки)\\b", "так-таки");
+        res = res.replaceAll("(?iu)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
+        res = res.replaceAll("(?iu)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
+        res = res.replaceAll("(?iu)\\b(едва)\\s+(едва)\\b", "едва-едва");
+        res = res.replaceAll("(?iu)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
+        res = res.replaceAll("(?iu)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
 
         // Particles -то, -нибудь, -либо
-        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
-        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
-        res = res.replaceAll("(?iU)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
+        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
 
         // 2. Compound conjunctions (must be executed before single conjunctions)
         String[] compoundConjunctions = new String[] {
@@ -934,12 +963,12 @@ public final class GboardProofreadService {
                 "перед тем как", "после того как", "в связи с тем что", "благодаря тому что"
         };
         for (String conj : compoundConjunctions) {
-            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
         }
 
         // 3. Opposing & coordinating conjunctions (indisputable comma rules)
-        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
-        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
+        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
+        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
 
         // 4. Subordinate conjunctions & relative words
         String[] subordinateConjunctions = new String[] {
@@ -948,20 +977,20 @@ public final class GboardProofreadService {
                 "которым", "которую", "которых", "которыми"
         };
         for (String conj : subordinateConjunctions) {
-            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
+            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
         }
 
         // Subordinate "что"
-        res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
+        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
         // Revert false comma splits around specific idioms:
-        res = res.replaceAll("(?iU),\\s*потому,\\s*что\\b", ", потому что");
-        res = res.replaceAll("(?iU)\\bпотому,\\s*что\\b", "потому что");
-        res = res.replaceAll("(?iU),\\s*только,\\s*что\\b", ", только что");
-        res = res.replaceAll("(?iU)\\bтолько,\\s*что\\b", "только что");
-        res = res.replaceAll("(?iU),\\s*разве,\\s*что\\b", ", разве что");
-        res = res.replaceAll("(?iU)\\bразве,\\s*что\\b", "разве что");
-        res = res.replaceAll("(?iU),\\s*кое,\\s*что\\b", "кое-что");
-        res = res.replaceAll("(?iU)\\bкое,\\s*что\\b", "кое-что");
+        res = res.replaceAll("(?iu),\\s*потому,\\s*что\\b", ", потому что");
+        res = res.replaceAll("(?iu)\\bпотому,\\s*что\\b", "потому что");
+        res = res.replaceAll("(?iu),\\s*только,\\s*что\\b", ", только что");
+        res = res.replaceAll("(?iu)\\bтолько,\\s*что\\b", "только что");
+        res = res.replaceAll("(?iu),\\s*разве,\\s*что\\b", ", разве что");
+        res = res.replaceAll("(?iu)\\bразве,\\s*что\\b", "разве что");
+        res = res.replaceAll("(?iu),\\s*кое,\\s*что\\b", "кое-что");
+        res = res.replaceAll("(?iu)\\bкое,\\s*что\\b", "кое-что");
 
         // 5. Introductory words - only unambiguous modal words
         String[] introWords = new String[] {
@@ -972,16 +1001,16 @@ public final class GboardProofreadService {
         };
         for (String iw : introWords) {
             // At start of sentence, followed by words
-            res = res.replaceAll("(?iU)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
+            res = res.replaceAll("(?iu)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
             // In middle of sentence, followed by words
-            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
+            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
             // At end of sentence or before punctuation: comma only before the introductory word, never after!
-            res = res.replaceAll("(?iU)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
+            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
         }
 
         // Idioms that must NOT have commas
-        res = res.replaceAll("(?iU),\\s*не\\s+за,\\s*что\\b", " не за что");
-        res = res.replaceAll("(?iU)\\bне\\s+за,\\s*что\\b", "не за что");
+        res = res.replaceAll("(?iu),\\s*не\\s+за,\\s*что\\b", " не за что");
+        res = res.replaceAll("(?iu)\\bне\\s+за,\\s*что\\b", "не за что");
 
         // 6. Typographic spacing and punctuation cleanup
         res = res.replaceAll("[ \\t]{2,}", " ");
@@ -1010,7 +1039,7 @@ public final class GboardProofreadService {
         res = capitalized.toString();
 
         // 8. Question mark for interrogative sentences ending without punctuation (excluding indefinite -то/-нибудь)
-        if (res.matches("(?iU)^(почему|зачем|как|когда|где|куда|откуда|кто|что|сколько|какой|какая|какое|какие)\\b(?!-(то|нибудь|либо)).*[^.!?]$")) {
+        if (res.matches("(?iu)^(почему|зачем|как|когда|где|куда|откуда|кто|что|сколько|какой|какая|какое|какие)\\b(?!-(то|нибудь|либо)).*[^.!?]$")) {
             res = res + "?";
         }
 
@@ -1018,6 +1047,10 @@ public final class GboardProofreadService {
         String prefix = text.substring(0, startSpaces);
         String suffix = text.substring(text.length() - endSpaces);
         return prefix + res + suffix;
+        } catch (Throwable t) {
+            logw(TAG, "Error in applyGrammarHeuristics", t);
+            return text;
+        }
     }
 
     /**
