@@ -34,6 +34,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -248,6 +249,21 @@ public final class GboardProofreadService {
      * Intercepts Gboard native Writing Tools proofread requests (hip.y).
      * Replaces Google GenAI gRPC call with Yandex Speller API + Russian grammar heuristics.
      */
+    /**
+     * Converts a Java Collection into Gboard's native Guava ImmutableList (wfr).
+     * This avoids ClassCastException in Gboard's internal Future callbacks (hkz, gut).
+     */
+    private static Object toImmutableList(ClassLoader cl, Collection<?> list) {
+        try {
+            Class<?> wfrClass = Class.forName("wfr", true, cl);
+            Method oMethod = wfrClass.getMethod("o", Collection.class);
+            return oMethod.invoke(null, list != null ? list : Collections.emptyList());
+        } catch (Throwable t) {
+            logw(TAG, "Failed to convert collection to wfr (ImmutableList)", t);
+            return list != null ? list : Collections.emptyList();
+        }
+    }
+
     public static Object onGetGenAiProofreadResponse(Object hipInstance, Object qrwInstance) {
         try {
             Context context = getContextFromHip(hipInstance);
@@ -293,11 +309,13 @@ public final class GboardProofreadService {
                     List<Object> list = new ArrayList<>();
                     list.add(suggestion);
 
-                    edMethod.invoke(future, list);
+                    Object immutableList = toImmutableList(cl, list);
+                    edMethod.invoke(future, immutableList);
                 } catch (Throwable t) {
                     logw(TAG, "Worker failed in onGetGenAiProofreadResponse", t);
                     try {
-                        edMethod.invoke(future, Collections.emptyList());
+                        Object emptyImmutable = toImmutableList(cl, Collections.emptyList());
+                        edMethod.invoke(future, emptyImmutable);
                     } catch (Throwable ignored) {}
                 }
             });
@@ -387,11 +405,13 @@ public final class GboardProofreadService {
                         list.add(builder.getClass().getMethod("a").invoke(builder));
                     }
 
-                    edMethod.invoke(future, list);
+                    Object immutableList = toImmutableList(cl, list);
+                    edMethod.invoke(future, immutableList);
                 } catch (Throwable t) {
                     logw(TAG, "Error in onGetGenAiRewriteResponse worker", t);
                     try {
-                        edMethod.invoke(future, Collections.emptyList());
+                        Object emptyImmutable = toImmutableList(cl, Collections.emptyList());
+                        edMethod.invoke(future, emptyImmutable);
                     } catch (Throwable ignored) {}
                 }
             });
