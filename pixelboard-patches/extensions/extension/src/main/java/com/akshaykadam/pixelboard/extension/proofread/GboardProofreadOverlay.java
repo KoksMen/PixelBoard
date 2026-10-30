@@ -184,6 +184,8 @@ public final class GboardProofreadOverlay {
                 headerRow.addView(title, titleParams);
 
                 TextView closeBtn = new TextView(context);
+                closeBtn.setFocusable(false);
+                closeBtn.setFocusableInTouchMode(false);
                 closeBtn.setText("✕");
                 closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
                 closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -224,6 +226,8 @@ public final class GboardProofreadOverlay {
 
                 // Google AI Writing Tools Button (Left aligned)
                 TextView googleAiBtn = new TextView(context);
+                googleAiBtn.setFocusable(false);
+                googleAiBtn.setFocusableInTouchMode(false);
                 googleAiBtn.setText("✨ AI Google");
                 googleAiBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
                 googleAiBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -255,6 +259,8 @@ public final class GboardProofreadOverlay {
 
                 // Cancel Button
                 TextView cancelBtn = new TextView(context);
+                cancelBtn.setFocusable(false);
+                cancelBtn.setFocusableInTouchMode(false);
                 cancelBtn.setText("Отмена");
                 cancelBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
                 cancelBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -266,6 +272,8 @@ public final class GboardProofreadOverlay {
 
                 // Apply Button (Primary Green / Accent)
                 TextView applyBtn = new TextView(context);
+                applyBtn.setFocusable(false);
+                applyBtn.setFocusableInTouchMode(false);
                 applyBtn.setText("✓  Применить");
                 applyBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
                 applyBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -343,7 +351,8 @@ public final class GboardProofreadOverlay {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setClickable(true);
-        card.setFocusable(true);
+        card.setFocusable(false);
+        card.setFocusableInTouchMode(false);
 
         int surfaceColor = GboardSpacebarIndicatorOverlay.resolveSurfaceColor(context);
         boolean isDark = isColorDark(surfaceColor);

@@ -14,10 +14,13 @@ import android.text.SpannableString;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import android.inputmethodservice.InputMethodService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.view.inputmethod.ExtractedText;
+import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarSwipeRuntime;
@@ -201,37 +204,80 @@ public final class GboardProofreadService {
     }
 
     /**
+     * Extracts text from an oxh (Gboard Document/Selection descriptor) instance.
+     * Accurately distinguishes between manual selections and active sentences around the cursor.
+     */
+    private static String extractTextFromOxh(Object oxh) {
+        if (oxh == null) return null;
+        try {
+            Method oMethod = oxh.getClass().getMethod("o");
+            boolean isSelected = Boolean.TRUE.equals(oMethod.invoke(oxh));
+            if (isSelected) {
+                Method lMethod = oxh.getClass().getMethod("l");
+                Object sel = lMethod.invoke(oxh);
+                if (sel != null && !sel.toString().trim().isEmpty()) {
+                    return sel.toString();
+                }
+            }
+            Method nMethod = oxh.getClass().getMethod("n");
+            Method mMethod = oxh.getClass().getMethod("m");
+            Object beforeObj = nMethod.invoke(oxh);
+            Object afterObj = mMethod.invoke(oxh);
+            String before = beforeObj != null ? beforeObj.toString() : "";
+            String after = afterObj != null ? afterObj.toString() : "";
+            TextScope scope = findActiveSentenceScope(before, after);
+            String full = scope.getFullText();
+            if (full != null && !full.trim().isEmpty()) {
+                return full;
+            }
+        } catch (Throwable t) {
+            logw(TAG, "Error extracting text from oxh", t);
+        }
+        return oxh.toString();
+    }
+
+    /**
      * Extracts text to proofread from either the trigger info (qrw) or JarvisExtension (hip).
      */
     private static String extractTextToProofread(Object hipInstance, Object qrwInstance) {
         String text = null;
         if (qrwInstance != null) {
             try {
-                Method fMethod = qrwInstance.getClass().getMethod("F", qrwInstance.getClass());
-                Object s = fMethod.invoke(null, qrwInstance);
-                if (s != null) {
-                    text = s.toString();
+                Field bField = qrwInstance.getClass().getDeclaredField("b");
+                bField.setAccessible(true);
+                Object oxh = bField.get(qrwInstance);
+                if (oxh != null) {
+                    text = extractTextFromOxh(oxh);
                 }
             } catch (Throwable ignored) {}
             if (text == null || text.trim().isEmpty()) {
                 try {
-                    Field bField = qrwInstance.getClass().getDeclaredField("b");
-                    bField.setAccessible(true);
-                    Object oxh = bField.get(qrwInstance);
-                    if (oxh != null) {
-                        text = oxh.toString();
+                    Method fMethod = qrwInstance.getClass().getMethod("F", qrwInstance.getClass());
+                    Object s = fMethod.invoke(null, qrwInstance);
+                    if (s != null) {
+                        text = s.toString();
                     }
                 } catch (Throwable ignored) {}
             }
         }
         if ((text == null || text.trim().isEmpty()) && hipInstance != null) {
             try {
-                Method vMethod = hipInstance.getClass().getMethod("v", boolean.class);
-                Object oxh = vMethod.invoke(hipInstance, true);
-                if (oxh != null) {
-                    text = oxh.toString();
+                Field xField = hipInstance.getClass().getDeclaredField("x");
+                xField.setAccessible(true);
+                Object curX = xField.get(hipInstance);
+                if (curX != null) {
+                    text = extractTextFromOxh(curX);
                 }
             } catch (Throwable ignored) {}
+            if (text == null || text.trim().isEmpty()) {
+                try {
+                    Method vMethod = hipInstance.getClass().getMethod("v", boolean.class);
+                    Object oxh = vMethod.invoke(hipInstance, true);
+                    if (oxh != null) {
+                        text = extractTextFromOxh(oxh);
+                    }
+                } catch (Throwable ignored) {}
+            }
         }
         if (text == null || text.trim().isEmpty()) {
             InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
@@ -246,6 +292,111 @@ public final class GboardProofreadService {
             }
         }
         return text;
+    }
+
+    /**
+     * Configures the exact target replacement range in JarvisExtension (hip.x).
+     * If user did not manually highlight text, this expands oxh so Gboard's native
+     * commit engine (gyd.A -> owa.h) replaces the exact target sentence!
+     */
+    private static void setupTargetRangeInHip(Object hipInstance, String textToTarget) {
+        if (hipInstance == null) return;
+        try {
+            Field xField = hipInstance.getClass().getDeclaredField("x");
+            xField.setAccessible(true);
+            Object curX = xField.get(hipInstance);
+            if (curX == null) {
+                Method vMethod = hipInstance.getClass().getMethod("v", boolean.class);
+                curX = vMethod.invoke(hipInstance, true);
+            }
+            if (curX != null) {
+                Method oMethod = curX.getClass().getMethod("o");
+                boolean isSelected = Boolean.TRUE.equals(oMethod.invoke(curX));
+                if (!isSelected) {
+                    Method nMethod = curX.getClass().getMethod("n");
+                    Method mMethod = curX.getClass().getMethod("m");
+                    Object beforeObj = nMethod.invoke(curX);
+                    Object afterObj = mMethod.invoke(curX);
+                    String before = beforeObj != null ? beforeObj.toString() : "";
+                    String after = afterObj != null ? afterObj.toString() : "";
+                    TextScope scope = findActiveSentenceScope(before, after);
+                    int bLen = scope.beforeScope.length();
+                    int aLen = scope.afterScope.length();
+                    if (bLen > 0 || aLen > 0) {
+                        Method jMethod = curX.getClass().getMethod("j", int.class, int.class);
+                        Object expandedOxh = jMethod.invoke(curX, bLen, aLen);
+                        xField.set(hipInstance, expandedOxh);
+                    } else {
+                        xField.set(hipInstance, curX);
+                    }
+                } else {
+                    xField.set(hipInstance, curX);
+                }
+            }
+        } catch (Throwable t) {
+            logw(TAG, "Failed to setup target range in hip.x", t);
+        }
+    }
+
+    /**
+     * Constructs a fully-validated Omq suggestion matching Gboard's exact builder constraints:
+     * sets bitmask 0x7 (index, score, isPersonalized), sessionId, modelVersion, omr.a (NO_ERROR),
+     * candidateOrigin, failureMode, and optional style prompt.
+     */
+    private static Object createOmqSuggestion(ClassLoader cl, Method zMethod, String text, int index, Object ompInstance) {
+        try {
+            Object builder = zMethod.invoke(null);
+            Class<?> bClass = builder.getClass();
+
+            // 1. text (b: String)
+            bClass.getMethod("i", String.class).invoke(builder, text != null ? text : "");
+
+            // 2. index (c: int) -> bit 0x1
+            bClass.getMethod("d", int.class).invoke(builder, index);
+
+            // 3. score (d: double) -> bit 0x2
+            bClass.getMethod("g", double.class).invoke(builder, 1.0);
+
+            // 4. isPersonalized (k: boolean) -> bit 0x4 (Total bitmask l = 1|2|4 = 7)
+            bClass.getMethod("e", boolean.class).invoke(builder, false);
+
+            // 5. sessionId (f: String)
+            bClass.getMethod("f", String.class).invoke(builder, "PixelBoardProofread");
+
+            // 6. modelVersion (h: String)
+            bClass.getMethod("h", String.class).invoke(builder, "yandex-speller-v1");
+
+            // 7. errorCode (g: Lomr;) -> Lomr;->a (NO_ERROR)
+            Class<?> omrClass = Class.forName("omr", true, cl);
+            Field omrAField = omrClass.getField("a");
+            bClass.getMethod("c", omrClass).invoke(builder, omrAField.get(null));
+
+            // 8. candidateOrigin (i: Loko;) -> Loko;->a
+            Class<?> okoClass = Class.forName("oko", true, cl);
+            Field okoAField = okoClass.getField("a");
+            bClass.getMethod("j", okoClass).invoke(builder, okoAField.get(null));
+
+            // 9. failureMode (j: Lomn;) -> Lomn;->a
+            Class<?> omnClass = Class.forName("omn", true, cl);
+            Field omnAField = omnClass.getField("a");
+            bClass.getMethod("b", omnClass).invoke(builder, omnAField.get(null));
+
+            // 10. style (e: Optional<Lomp;>)
+            if (ompInstance != null) {
+                try {
+                    Class<?> optionalClass = Class.forName("j$.util.Optional", true, cl);
+                    Method ofMethod = optionalClass.getMethod("of", Object.class);
+                    Object opt = ofMethod.invoke(null, ompInstance);
+                    bClass.getMethod("k", optionalClass).invoke(builder, opt);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            return bClass.getMethod("a").invoke(builder);
+        } catch (Throwable t) {
+            logw(TAG, "Failed to create Omq suggestion via builder", t);
+            return null;
+        }
     }
 
     /**
@@ -335,33 +486,15 @@ public final class GboardProofreadService {
             final Method zMethod = omqClass.getMethod("z");
 
             if (textToProofread == null || textToProofread.trim().isEmpty()) {
-                Object builder = zMethod.invoke(null);
-                builder.getClass().getMethod("i", String.class).invoke(builder, "");
-                Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                Object suggestion = createOmqSuggestion(cl, zMethod, "", 0, null);
                 List<Object> list = new ArrayList<>();
-                list.add(suggestion);
+                if (suggestion != null) list.add(suggestion);
                 edMethod.invoke(future, toImmutableList(cl, list));
                 return future;
             }
 
             sLastOriginalText = textToProofread;
-
-            // Ensure hip.x is populated so hpb.A() returns the original text to hjc/hiv
-            if (hipInstance != null) {
-                try {
-                    Field xField = hipInstance.getClass().getDeclaredField("x");
-                    xField.setAccessible(true);
-                    Object curX = xField.get(hipInstance);
-                    if (curX == null) {
-                        Class<?> oxhClass = Class.forName("oxh", true, cl);
-                        Method hMethod = oxhClass.getMethod("h", CharSequence.class, int.class);
-                        Object oxh = hMethod.invoke(null, textToProofread, 0);
-                        xField.set(hipInstance, oxh);
-                    }
-                } catch (Throwable t) {
-                    logw(TAG, "Failed to ensure hip.x in proofread", t);
-                }
-            }
+            setupTargetRangeInHip(hipInstance, textToProofread);
 
             if (hipInstance != null) {
                 try {
@@ -380,31 +513,19 @@ public final class GboardProofreadService {
                     String corrected = result.hasChanges ? result.correctedText : text;
                     sLastCorrectedText = corrected;
 
-                    Object builder = zMethod.invoke(null);
-                    Method iMethod = builder.getClass().getMethod("i", String.class);
-                    Method aMethod = builder.getClass().getMethod("a");
-
-                    iMethod.invoke(builder, corrected);
-                    try {
-                        Method hMethod = builder.getClass().getMethod("h", String.class);
-                        hMethod.invoke(builder, text);
-                    } catch (Throwable ignored) {}
-
-                    Object suggestion = aMethod.invoke(builder);
+                    Object suggestion = createOmqSuggestion(cl, zMethod, corrected, 0, null);
 
                     List<Object> list = new ArrayList<>();
-                    list.add(suggestion);
+                    if (suggestion != null) list.add(suggestion);
 
                     Object immutableList = toImmutableList(cl, list);
                     edMethod.invoke(future, immutableList);
                 } catch (Throwable t) {
                     logw(TAG, "Worker failed in onGetGenAiProofreadResponse", t);
                     try {
-                        Object builder = zMethod.invoke(null);
-                        builder.getClass().getMethod("i", String.class).invoke(builder, text != null ? text : "");
-                        Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                        Object suggestion = createOmqSuggestion(cl, zMethod, text != null ? text : "", 0, null);
                         List<Object> list = new ArrayList<>();
-                        list.add(suggestion);
+                        if (suggestion != null) list.add(suggestion);
                         edMethod.invoke(future, toImmutableList(cl, list));
                     } catch (Throwable ignored) {}
                 }
@@ -474,33 +595,15 @@ public final class GboardProofreadService {
             final Method zMethod = omqClass.getMethod("z");
 
             if (textToRewrite == null || textToRewrite.trim().isEmpty()) {
-                Object builder = zMethod.invoke(null);
-                builder.getClass().getMethod("i", String.class).invoke(builder, "");
-                Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                Object suggestion = createOmqSuggestion(cl, zMethod, "", 0, ompInstance);
                 List<Object> list = new ArrayList<>();
-                list.add(suggestion);
+                if (suggestion != null) list.add(suggestion);
                 edMethod.invoke(future, toImmutableList(cl, list));
                 return future;
             }
 
             sLastOriginalText = textToRewrite;
-
-            // Ensure hip.x is populated so hpb.A() returns the original text
-            if (hipInstance != null) {
-                try {
-                    Field xField = hipInstance.getClass().getDeclaredField("x");
-                    xField.setAccessible(true);
-                    Object curX = xField.get(hipInstance);
-                    if (curX == null) {
-                        Class<?> oxhClass = Class.forName("oxh", true, cl);
-                        Method hMethod = oxhClass.getMethod("h", CharSequence.class, int.class);
-                        Object oxh = hMethod.invoke(null, textToRewrite, 0);
-                        xField.set(hipInstance, oxh);
-                    }
-                } catch (Throwable t) {
-                    logw(TAG, "Failed to ensure hip.x in rewrite", t);
-                }
-            }
+            setupTargetRangeInHip(hipInstance, textToRewrite);
 
             if (hipInstance != null) {
                 try {
@@ -518,25 +621,20 @@ public final class GboardProofreadService {
                     ProofreadResult baseResult = checkTextInternal(text, false, 0, 0);
                     String baseClean = baseResult.hasChanges ? baseResult.correctedText : text;
 
-                    List<String> variants = generateRussianRewriteVariants(baseClean);
+                    List<String> variants = generateRussianRewriteVariants(baseClean, ompInstance);
                     List<Object> list = new ArrayList<>();
+                    int idx = 0;
                     for (String v : variants) {
                         if (v == null || v.trim().isEmpty()) continue;
-                        Object builder = zMethod.invoke(null);
-                        builder.getClass().getMethod("i", String.class).invoke(builder, v);
-                        try {
-                            builder.getClass().getMethod("h", String.class).invoke(builder, text);
-                        } catch (Throwable ignored) {}
-                        list.add(builder.getClass().getMethod("a").invoke(builder));
+                        Object suggestion = createOmqSuggestion(cl, zMethod, v, idx++, ompInstance);
+                        if (suggestion != null) {
+                            list.add(suggestion);
+                        }
                     }
 
                     if (list.isEmpty()) {
-                        Object builder = zMethod.invoke(null);
-                        builder.getClass().getMethod("i", String.class).invoke(builder, baseClean);
-                        try {
-                            builder.getClass().getMethod("h", String.class).invoke(builder, text);
-                        } catch (Throwable ignored) {}
-                        list.add(builder.getClass().getMethod("a").invoke(builder));
+                        Object suggestion = createOmqSuggestion(cl, zMethod, baseClean, 0, ompInstance);
+                        if (suggestion != null) list.add(suggestion);
                     }
 
                     Object immutableList = toImmutableList(cl, list);
@@ -544,11 +642,9 @@ public final class GboardProofreadService {
                 } catch (Throwable t) {
                     logw(TAG, "Error in onGetGenAiRewriteResponse worker", t);
                     try {
-                        Object builder = zMethod.invoke(null);
-                        builder.getClass().getMethod("i", String.class).invoke(builder, text != null ? text : "");
-                        Object suggestion = builder.getClass().getMethod("a").invoke(builder);
+                        Object suggestion = createOmqSuggestion(cl, zMethod, text != null ? text : "", 0, ompInstance);
                         List<Object> list = new ArrayList<>();
-                        list.add(suggestion);
+                        if (suggestion != null) list.add(suggestion);
                         edMethod.invoke(future, toImmutableList(cl, list));
                     } catch (Throwable ignored) {}
                 }
@@ -559,6 +655,57 @@ public final class GboardProofreadService {
             logw(TAG, "Error in onGetGenAiRewriteResponse", t);
             return null;
         }
+    }
+
+    /**
+     * Generates multiple high quality Russian stylistic variations for the rewrite tab,
+     * tailored to the requested Gboard style option (omp: Formal, Casual, Shorten, Emojify, etc.).
+     */
+    public static List<String> generateRussianRewriteVariants(String text, Object ompInstance) {
+        List<String> variants = new ArrayList<>();
+        if (text == null || text.trim().isEmpty()) {
+            return variants;
+        }
+        String clean = text.trim();
+        String style = ompInstance != null ? ompInstance.toString() : "";
+
+        if (style.contains("FORMALIZE")) {
+            String formal = clean;
+            if (!formal.endsWith(".") && !formal.endsWith("!") && !formal.endsWith("?")) {
+                formal += ".";
+            }
+            variants.add(formal);
+            variants.add("Уважаемые коллеги, " + Character.toLowerCase(formal.charAt(0)) + formal.substring(1));
+        } else if (style.contains("CASUALIZE")) {
+            String friendly = clean;
+            if (friendly.endsWith(".")) {
+                friendly = friendly.substring(0, friendly.length() - 1);
+            }
+            if (!friendly.endsWith("!") && !friendly.endsWith("?")) {
+                friendly += "!";
+            }
+            variants.add(friendly);
+            variants.add("Привет! " + friendly);
+        } else if (style.contains("SHORTEN")) {
+            String concise = clean.replaceAll("(?iu)\\b(в общем|так сказать|короче|собственно говоря|как бы|в принципе)\\b,?\\s*", "").trim();
+            if (concise.isEmpty()) concise = clean;
+            if (Character.isLowerCase(concise.charAt(0))) {
+                concise = Character.toUpperCase(concise.charAt(0)) + concise.substring(1);
+            }
+            if (!concise.endsWith(".") && !concise.endsWith("!") && !concise.endsWith("?")) {
+                concise += ".";
+            }
+            variants.add(concise);
+        } else if (style.contains("EMOJIFY")) {
+            variants.add(clean + " 😊👍");
+            variants.add("✨ " + clean + " ✨");
+        } else if (style.contains("ELABORATE")) {
+            variants.add(clean + " Подводя итог, следует особо отметить ключевое значение сказанного.");
+            variants.add(clean);
+        } else {
+            variants.addAll(generateRussianRewriteVariants(clean));
+        }
+        return variants;
     }
 
     /**
@@ -1154,13 +1301,20 @@ public final class GboardProofreadService {
      * Applies the corrected text to the active InputConnection.
      */
     public static boolean applyCorrection(InputMethodService ims, ProofreadResult result) {
-        if (ims == null || result == null || result.correctedText == null) {
+        if (ims == null || result == null || result.correctedText == null || result.originalText == null) {
             return false;
         }
 
         InputConnection ic = ims.getCurrentInputConnection();
         if (ic == null) {
             return false;
+        }
+
+        String orig = result.originalText;
+        String corr = result.correctedText;
+
+        if (orig.equals(corr)) {
+            return true;
         }
 
         try {
@@ -1170,10 +1324,76 @@ public final class GboardProofreadService {
             } catch (Throwable ignored) {
             }
 
-            String orig = result.originalText;
-            String corr = result.correctedText;
+            // 1. Try to get absolute document offsets via ExtractedText
+            try {
+                ExtractedTextRequest req = new ExtractedTextRequest();
+                req.hintMaxChars = 10000;
+                req.hintMaxLines = 1000;
+                ExtractedText et = ic.getExtractedText(req, 0);
+                if (et != null && et.text != null) {
+                    String fullDoc = et.text.toString();
+                    int selStart = et.startOffset + et.selectionStart;
+                    int selEnd = et.startOffset + et.selectionEnd;
 
-            // 1. Check active selection: if current selection matches orig
+                    int targetStart = -1;
+                    int targetEnd = -1;
+
+                    if (selStart < selEnd) {
+                        String selText = fullDoc.substring(Math.max(0, selStart), Math.min(fullDoc.length(), selEnd));
+                        if (selText.equals(orig) || selText.trim().equals(orig.trim())) {
+                            targetStart = selStart;
+                            targetEnd = selEnd;
+                        }
+                    }
+
+                    if (targetStart == -1) {
+                        // Locate using beforeLength and afterLength around cursor
+                        int expStart = selStart - result.beforeLength;
+                        int expEnd = selStart + result.afterLength;
+                        if (expStart >= 0 && expEnd <= fullDoc.length()) {
+                            String sub = fullDoc.substring(expStart, expEnd);
+                            if (sub.equals(orig) || sub.equalsIgnoreCase(orig)) {
+                                targetStart = expStart;
+                                targetEnd = expEnd;
+                            }
+                        }
+                    }
+
+                    if (targetStart == -1) {
+                        // Search for orig near cursor (within 60 chars)
+                        int searchMin = Math.max(0, selStart - orig.length() - 60);
+                        int idx = fullDoc.lastIndexOf(orig, Math.min(selStart, fullDoc.length()));
+                        if (idx >= searchMin) {
+                            targetStart = idx;
+                            targetEnd = idx + orig.length();
+                        }
+                    }
+
+                    if (targetStart >= 0 && targetEnd >= targetStart && targetEnd <= fullDoc.length()) {
+                        boolean replaced = false;
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            try {
+                                Class<?> taClass = Class.forName("android.view.inputmethod.TextAttribute");
+                                Method replaceMethod = InputConnection.class.getMethod("replaceText",
+                                        int.class, int.class, CharSequence.class, int.class, taClass);
+                                replaced = Boolean.TRUE.equals(replaceMethod.invoke(ic, targetStart, targetEnd, corr, 1, null));
+                            } catch (Throwable ignored) {}
+                        }
+                        if (!replaced) {
+                            ic.setComposingRegion(targetStart, targetEnd);
+                            ic.commitText(corr, 1);
+                            ic.finishComposingText();
+                        }
+                        ic.endBatchEdit();
+                        logw(TAG, "Applied correction via ExtractedText offsets [" + targetStart + ", " + targetEnd + "]: " + corr);
+                        return true;
+                    }
+                }
+            } catch (Throwable t) {
+                logw(TAG, "ExtractedText replacement attempt failed, falling back to relative context", t);
+            }
+
+            // 2. Relative context fallback (using getTextBeforeCursor / getTextAfterCursor)
             CharSequence currentSel = ic.getSelectedText(0);
             if (currentSel != null && currentSel.length() > 0) {
                 String selStr = currentSel.toString();
@@ -1185,13 +1405,12 @@ public final class GboardProofreadService {
                 }
             }
 
-            // 2. Read context around cursor
             CharSequence beforeCs = ic.getTextBeforeCursor(1500, 0);
             CharSequence afterCs = ic.getTextAfterCursor(600, 0);
             String before = beforeCs != null ? beforeCs.toString() : "";
             String after = afterCs != null ? afterCs.toString() : "";
 
-            // Case 1: Cursor is right after originalText (standard typing at end of input)
+            // Case 1: Cursor is right after originalText
             if (before.endsWith(orig)) {
                 ic.deleteSurroundingText(orig.length(), 0);
                 ic.commitText(corr, 1);
@@ -1227,7 +1446,7 @@ public final class GboardProofreadService {
                 return true;
             }
 
-            // Case 4: Trimmed match (handling trailing/leading spaces desync)
+            // Case 4: Trimmed match
             String origTrim = orig.trim();
             String corrTrim = corr.trim();
             if (!origTrim.isEmpty()) {
@@ -1277,49 +1496,7 @@ public final class GboardProofreadService {
                 }
             }
 
-            // Case 5: Near-cursor search in before (if cursor shifted slightly e.g. after punctuation auto-space)
-            int idxInBefore = before.lastIndexOf(orig);
-            if (idxInBefore == -1 && !origTrim.isEmpty()) {
-                idxInBefore = before.lastIndexOf(origTrim);
-            }
-            if (idxInBefore >= 0) {
-                int matchedLen = before.startsWith(orig, idxInBefore) ? orig.length() : origTrim.length();
-                int charsAfter = before.length() - (idxInBefore + matchedLen);
-                if (charsAfter <= 15) {
-                    String extra = before.substring(idxInBefore + matchedLen);
-                    ic.deleteSurroundingText(charsAfter + matchedLen, 0);
-                    ic.commitText(corr + extra, 1);
-                    ic.endBatchEdit();
-                    logw(TAG, "Applied correction via near-cursor index search in before");
-                    return true;
-                }
-            }
-
-            // Case 6: Near-cursor search in after
-            int idxInAfter = after.indexOf(orig);
-            if (idxInAfter == -1 && !origTrim.isEmpty()) {
-                idxInAfter = after.indexOf(origTrim);
-            }
-            if (idxInAfter >= 0 && idxInAfter <= 15) {
-                int matchedLen = after.startsWith(orig, idxInAfter) ? orig.length() : origTrim.length();
-                String prefixExtra = after.substring(0, idxInAfter);
-                ic.deleteSurroundingText(0, idxInAfter + matchedLen);
-                ic.commitText(prefixExtra + corr, 1);
-                ic.endBatchEdit();
-                logw(TAG, "Applied correction via near-cursor index search in after");
-                return true;
-            }
-
-            // Case 7: Case-insensitive match at end of before
-            if (before.length() >= orig.length() && before.substring(before.length() - orig.length()).equalsIgnoreCase(orig)) {
-                ic.deleteSurroundingText(orig.length(), 0);
-                ic.commitText(corr, 1);
-                ic.endBatchEdit();
-                logw(TAG, "Applied correction via case-insensitive before.endsWith: " + corr);
-                return true;
-            }
-
-            // Case 8: Verified stored scope match (only if the text before cursor actually matches stored beforeScope)
+            // Case 5: Verified stored scope match
             if (result.beforeLength > 0 && before.length() >= result.beforeLength) {
                 String beforeSub = before.substring(before.length() - result.beforeLength);
                 String expectedBefore = result.originalText.substring(0, result.beforeLength);
@@ -1340,12 +1517,23 @@ public final class GboardProofreadService {
                 }
             }
 
-            // Safe Abort: Do NOT blindly delete characters if no verified match was found!
+            // Case 6: Case-insensitive match at end of before
+            if (before.length() >= orig.length() && before.substring(before.length() - orig.length()).equalsIgnoreCase(orig)) {
+                ic.deleteSurroundingText(orig.length(), 0);
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logw(TAG, "Applied correction via case-insensitive before.endsWith: " + corr);
+                return true;
+            }
+
             logw(TAG, "Aborted replacement: target text does not match cursor context (orig='" + orig + "'); preventing destructive deletion");
             ic.endBatchEdit();
             return false;
         } catch (Throwable t) {
             logw(TAG, "Failed to apply correction to InputConnection", t);
+            try {
+                ic.endBatchEdit();
+            } catch (Throwable ignored) {}
             return false;
         }
     }

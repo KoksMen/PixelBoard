@@ -518,7 +518,8 @@ public final class GboardProofreadButton {
             Context context, View keyboardView, ViewGroup host, LinearLayout bar, View iconView, int iconColor, boolean isAutofill) {
         FrameLayout buttonFrame = new FrameLayout(context);
         buttonFrame.setClickable(true);
-        buttonFrame.setFocusable(true);
+        buttonFrame.setFocusable(false);
+        buttonFrame.setFocusableInTouchMode(false);
         buttonFrame.setTag(CUSTOM_BUTTON_TAG);
 
         int buttonSize = dp(context, 40);
