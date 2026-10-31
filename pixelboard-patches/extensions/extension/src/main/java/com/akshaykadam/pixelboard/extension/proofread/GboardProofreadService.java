@@ -1196,137 +1196,55 @@ public final class GboardProofreadService {
     }
 
     /**
-     * Comprehensive Russian syntax, grammar, and punctuation engine.
-     * Places commas before conjunctions, formats introductory words, hyphenates particles,
-     * places question marks on questions, and fixes capitalization/spacing.
+     * Clean and safe Russian grammar & typography engine.
+     * Fixes stable hyphenated particles (-то, -нибудь, -либо), stable prepositions,
+     * and normalizes typographic spacing around punctuation without arbitrarily
+     * inserting disruptive commas or unwanted question marks.
      */
     public static String applyGrammarHeuristics(String text) {
         if (text == null || text.trim().isEmpty()) {
             return text;
         }
         try {
-        // Preserve leading and trailing whitespace
-        int startSpaces = 0;
-        while (startSpaces < text.length() && Character.isWhitespace(text.charAt(startSpaces))) {
-            startSpaces++;
-        }
-        int endSpaces = 0;
-        while (endSpaces < text.length() && Character.isWhitespace(text.charAt(text.length() - 1 - endSpaces))) {
-            endSpaces++;
-        }
-
-        String res = text.trim();
-
-        // 1. Hyphenated prepositions and unambiguous stable adverbs
-        res = res.replaceAll("(?iu)\\b(из)\\s+(за)\\b", "$1-$2");
-        res = res.replaceAll("(?iu)\\b(из)\\s+(под)\\b", "$1-$2");
-        res = res.replaceAll("(?iu)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
-        res = res.replaceAll("(?iu)\\b(так)\\s+(таки)\\b", "так-таки");
-        res = res.replaceAll("(?iu)\\b(точь)\\s+в\\s+(точь)\\b", "точь-в-точь");
-        res = res.replaceAll("(?iu)\\b(чуть)\\s+(чуть)\\b", "чуть-чуть");
-        res = res.replaceAll("(?iu)\\b(едва)\\s+(едва)\\b", "едва-едва");
-        res = res.replaceAll("(?iu)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
-        res = res.replaceAll("(?iu)\\b(во|в)\\s+(первых|вторых|третьих)\\b", "$1-$2");
-        res = res.replaceAll("(?iu)\\b(по)\\s+(русски|английски|немецки)\\b", "$1-$2");
-
-        // Particles -то, -нибудь, -либо
-        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
-        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
-        res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
-
-        // 2. Compound conjunctions (must be executed before single conjunctions)
-        String[] compoundConjunctions = new String[] {
-                "потому что", "так как", "так что", "для того чтобы", "из-за того что",
-                "несмотря на то что", "в то время как", "с тех пор как", "до тех пор пока",
-                "как будто", "как только", "то есть", "а также", "вместо того чтобы",
-                "перед тем как", "после того как", "в связи с тем что", "благодаря тому что"
-        };
-        for (String conj : compoundConjunctions) {
-            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
-        }
-
-        // 3. Opposing & coordinating conjunctions (indisputable comma rules)
-        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(но|однако|зато)\\b", "$1, $2");
-        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(а)\\b", "$1, $2");
-
-        // 4. Subordinate conjunctions & relative words
-        String[] subordinateConjunctions = new String[] {
-                "чтобы", "чтоб", "хотя", "где", "куда", "откуда", "когда",
-                "который", "которая", "которое", "которые", "которого", "которой", "которому",
-                "которым", "которую", "которых", "которыми"
-        };
-        for (String conj : subordinateConjunctions) {
-            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(conj) + ")\\b", "$1, $2");
-        }
-
-        // Subordinate "что"
-        res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(что)\\b", "$1, $2");
-        // Revert false comma splits around specific idioms:
-        res = res.replaceAll("(?iu),\\s*потому,\\s*что\\b", ", потому что");
-        res = res.replaceAll("(?iu)\\bпотому,\\s*что\\b", "потому что");
-        res = res.replaceAll("(?iu),\\s*только,\\s*что\\b", ", только что");
-        res = res.replaceAll("(?iu)\\bтолько,\\s*что\\b", "только что");
-        res = res.replaceAll("(?iu),\\s*разве,\\s*что\\b", ", разве что");
-        res = res.replaceAll("(?iu)\\bразве,\\s*что\\b", "разве что");
-        res = res.replaceAll("(?iu),\\s*кое,\\s*что\\b", "кое-что");
-        res = res.replaceAll("(?iu)\\bкое,\\s*что\\b", "кое-что");
-
-        // 5. Introductory words - only unambiguous modal words
-        String[] introWords = new String[] {
-                "конечно", "кстати", "например", "к счастью", "к сожалению",
-                "в общем",
-                "между прочим", "разумеется", "безусловно",
-                "во-первых", "во-вторых", "в-третьих", "следовательно", "таким образом"
-        };
-        for (String iw : introWords) {
-            // At start of sentence, followed by words
-            res = res.replaceAll("(?iu)(^|[.!?]\\s+)(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1$2, ");
-            // In middle of sentence, followed by words
-            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s+[а-яА-ЯёЁa-zA-Z0-9])", "$1, $2, ");
-            // At end of sentence or before punctuation: comma only before the introductory word, never after!
-            res = res.replaceAll("(?iu)([а-яА-ЯёЁ0-9])\\s+(" + Pattern.quote(iw) + ")\\b(?=\\s*[.!?]|$)", "$1, $2");
-        }
-
-        // Idioms that must NOT have commas
-        res = res.replaceAll("(?iu),\\s*не\\s+за,\\s*что\\b", " не за что");
-        res = res.replaceAll("(?iu)\\bне\\s+за,\\s*что\\b", "не за что");
-
-        // 6. Typographic spacing and punctuation cleanup
-        res = res.replaceAll("[ \\t]{2,}", " ");
-        res = res.replaceAll("[ \\t]+([,.:;!?])", "$1");
-        res = res.replaceAll(",[ \\t]*,", ",");
-        res = res.replaceAll(",[ \\t]*([.!?])", "$1");
-        res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z0-9])", "$1 $2");
-        res = res.replaceAll(",[ \\t]*$", "");
-        res = res.replaceAll(",[ \\t]*\\n", "\\n");
-        res = res.replaceAll("[ \\t]{2,}", " ");
-
-        // 7. Capitalize first letter of each sentence
-        StringBuilder capitalized = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (int i = 0; i < res.length(); i++) {
-            char c = res.charAt(i);
-            if (capitalizeNext && Character.isLetter(c)) {
-                capitalized.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                capitalized.append(c);
-                if (c == '.' || c == '!' || c == '?' || c == '\n') {
-                    capitalizeNext = true;
-                }
+            int startSpaces = 0;
+            while (startSpaces < text.length() && Character.isWhitespace(text.charAt(startSpaces))) {
+                startSpaces++;
             }
-        }
-        res = capitalized.toString();
+            int endSpaces = 0;
+            while (endSpaces < text.length() && Character.isWhitespace(text.charAt(text.length() - 1 - endSpaces))) {
+                endSpaces++;
+            }
 
-        // 8. Question mark for interrogative sentences ending without punctuation (excluding indefinite -то/-нибудь)
-        if (res.matches("(?iu)^(почему|зачем|как|когда|где|куда|откуда|кто|что|сколько|какой|какая|какое|какие)\\b(?!-(то|нибудь|либо)).*[^.!?]$")) {
-            res = res + "?";
-        }
+            String res = text.trim();
 
-        // Reattach leading and trailing whitespace
-        String prefix = text.substring(0, startSpaces);
-        String suffix = text.substring(text.length() - endSpaces);
-        return prefix + res + suffix;
+            // 1. Stable Russian hyphenated particles (-то, -нибудь, -либо)
+            res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|почему|зачем|как|какой|какая|какое|какие|каком|каких|какую|каким|чей|чья|чь[её]|чьи)\\s+(то)\\b", "$1-$2");
+            res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой|какая|какое|какие|каком|каких|какую|чей)\\s+(нибудь)\\b", "$1-$2");
+            res = res.replaceAll("(?iu)\\b(что|кто|где|куда|когда|как|какой)\\s+(либо)\\b", "$1-$2");
+
+            // 2. Stable hyphenated prepositions and adverbs
+            res = res.replaceAll("(?iu)\\b(из)\\s+(за)\\b", "$1-$2");
+            res = res.replaceAll("(?iu)\\b(из)\\s+(под)\\b", "$1-$2");
+            res = res.replaceAll("(?iu)\\b(вс[её])\\s+(таки)\\b", "всё-таки");
+            res = res.replaceAll("(?iu)\\b(кое)\\s+(как|кто|что|где|куда)\\b", "кое-$2");
+
+            // 3. Typographic spacing and punctuation cleanup (no destructive commas or question marks)
+            res = res.replaceAll("[ \\t]{2,}", " ");
+            res = res.replaceAll("[ \\t]+([,.:;!?])", "$1");
+            res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z0-9])", "$1 $2");
+            res = res.replaceAll(",[ \\t]*$", "");
+            res = res.replaceAll(",[ \\t]*\\n", "\\n");
+            res = res.replaceAll("[ \\t]{2,}", " ");
+
+            // 4. Capitalize first letter of document if the original text was at the start of a sentence
+            if (!res.isEmpty() && Character.isLetter(res.charAt(0)) && Character.isUpperCase(text.trim().charAt(0))) {
+                res = Character.toUpperCase(res.charAt(0)) + (res.length() > 1 ? res.substring(1) : "");
+            }
+
+            // Reattach leading and trailing whitespace exactly as in original
+            String prefix = text.substring(0, startSpaces);
+            String suffix = text.substring(text.length() - endSpaces);
+            return prefix + res + suffix;
         } catch (Throwable t) {
             logw(TAG, "Error in applyGrammarHeuristics", t);
             return text;
@@ -1402,17 +1320,25 @@ public final class GboardProofreadService {
     }
 
     private static void buildDiffFromLcs(List<String> a, List<String> b, int[][] dp,
-                                         int i, int j, List<DiffToken> out) {
-        if (i > 0 && j > 0 && a.get(i - 1).equals(b.get(j - 1))) {
-            buildDiffFromLcs(a, b, dp, i - 1, j - 1, out);
-            out.add(new DiffToken(a.get(i - 1), DiffType.UNCHANGED));
-        } else if (j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-            buildDiffFromLcs(a, b, dp, i, j - 1, out);
-            out.add(new DiffToken(b.get(j - 1), DiffType.INSERTED));
-        } else if (i > 0 && (j == 0 || dp[i][j - 1] < dp[i - 1][j])) {
-            buildDiffFromLcs(a, b, dp, i - 1, j, out);
-            out.add(new DiffToken(a.get(i - 1), DiffType.DELETED));
+                                         int m, int n, List<DiffToken> out) {
+        List<DiffToken> reversed = new ArrayList<>();
+        int currI = m;
+        int currJ = n;
+        while (currI > 0 || currJ > 0) {
+            if (currI > 0 && currJ > 0 && a.get(currI - 1).equals(b.get(currJ - 1))) {
+                reversed.add(new DiffToken(a.get(currI - 1), DiffType.UNCHANGED));
+                currI--;
+                currJ--;
+            } else if (currJ > 0 && (currI == 0 || dp[currI][currJ - 1] >= dp[currI - 1][currJ])) {
+                reversed.add(new DiffToken(b.get(currJ - 1), DiffType.INSERTED));
+                currJ--;
+            } else if (currI > 0 && (currJ == 0 || dp[currI][currJ - 1] < dp[currI - 1][currJ])) {
+                reversed.add(new DiffToken(a.get(currI - 1), DiffType.DELETED));
+                currI--;
+            }
         }
+        Collections.reverse(reversed);
+        out.addAll(reversed);
     }
 
     /**
@@ -1442,6 +1368,18 @@ public final class GboardProofreadService {
             } catch (Throwable ignored) {
             }
 
+            // 0. Active selection match:
+            CharSequence currentSel = ic.getSelectedText(0);
+            if (currentSel != null && currentSel.length() > 0) {
+                String selStr = currentSel.toString();
+                if (selStr.equals(orig) || selStr.trim().equals(orig.trim()) || result.wasSelected) {
+                    ic.commitText(corr, 1);
+                    ic.endBatchEdit();
+                    logw(TAG, "Applied correction via active selection: " + corr);
+                    return true;
+                }
+            }
+
             // 1. Try to get absolute document offsets via ExtractedText
             try {
                 ExtractedTextRequest req = new ExtractedTextRequest();
@@ -1450,70 +1388,36 @@ public final class GboardProofreadService {
                 ExtractedText et = ic.getExtractedText(req, 0);
                 if (et != null && et.text != null) {
                     String fullDoc = et.text.toString();
-                    int selStart = et.startOffset + et.selectionStart;
-                    int selEnd = et.startOffset + et.selectionEnd;
-
-                    int targetStart = -1;
-                    int targetEnd = -1;
+                    int curPos = (et.selectionStart >= 0) ? et.startOffset + et.selectionStart : fullDoc.length();
+                    curPos = Math.max(0, Math.min(curPos, fullDoc.length()));
 
                     // Case A: Full document replacement (when beforeLength == -1)
                     if (result.beforeLength == -1 && (fullDoc.equals(orig) || fullDoc.trim().equals(orig.trim()))) {
-                        targetStart = 0;
-                        targetEnd = fullDoc.length();
-                    } else if (selStart < selEnd) {
-                        String selText = fullDoc.substring(Math.max(0, selStart), Math.min(fullDoc.length(), selEnd));
-                        if (selText.equals(orig) || selText.trim().equals(orig.trim())) {
-                            targetStart = selStart;
-                            targetEnd = selEnd;
+                        ic.setSelection(curPos, curPos);
+                        int before = curPos;
+                        int after = fullDoc.length() - curPos;
+                        if (before > 0 || after > 0) {
+                            ic.deleteSurroundingText(before, after);
                         }
-                    }
-
-                    if (targetStart == -1) {
-                        // Locate using substring in fullDoc
-                        int idx = fullDoc.indexOf(orig);
-                        if (idx >= 0) {
-                            targetStart = idx;
-                            targetEnd = idx + orig.length();
-                        } else {
-                            String origTrim = orig.trim();
-                            idx = fullDoc.indexOf(origTrim);
-                            if (idx >= 0) {
-                                targetStart = idx;
-                                targetEnd = idx + origTrim.length();
-                            }
-                        }
-                    }
-
-                    if (targetStart == -1 && result.beforeLength >= 0) {
-                        // Locate using beforeLength and afterLength around cursor
-                        int expStart = selStart - result.beforeLength;
-                        int expEnd = selStart + result.afterLength;
-                        if (expStart >= 0 && expEnd <= fullDoc.length()) {
-                            String sub = fullDoc.substring(expStart, expEnd);
-                            if (sub.equals(orig) || sub.equalsIgnoreCase(orig)) {
-                                targetStart = expStart;
-                                targetEnd = expEnd;
-                            }
-                        }
-                    }
-
-                    if (targetStart >= 0 && targetEnd >= targetStart && targetEnd <= fullDoc.length()) {
-                        boolean replaced = false;
-                        if (Build.VERSION.SDK_INT >= 34) {
-                            try {
-                                Class<?> taClass = Class.forName("android.view.inputmethod.TextAttribute");
-                                Method replaceMethod = InputConnection.class.getMethod("replaceText",
-                                        int.class, int.class, CharSequence.class, int.class, taClass);
-                                replaced = Boolean.TRUE.equals(replaceMethod.invoke(ic, targetStart, targetEnd, corr, 1, null));
-                            } catch (Throwable ignored) {}
-                        }
-                        if (!replaced) {
-                            ic.setComposingRegion(targetStart, targetEnd);
-                            ic.commitText(corr, 1);
-                            ic.finishComposingText();
-                        }
+                        ic.commitText(corr, 1);
                         ic.endBatchEdit();
-                        logw(TAG, "Applied correction via ExtractedText offsets [" + targetStart + ", " + targetEnd + "]: " + corr);
+                        logw(TAG, "Applied full document replacement via deleteSurroundingText(" + before + ", " + after + "): " + corr);
+                        return true;
+                    }
+
+                    // Case B: Substring inside full document
+                    int idx = fullDoc.indexOf(orig);
+                    if (idx < 0) {
+                        String origTrim = orig.trim();
+                        idx = fullDoc.indexOf(origTrim);
+                    }
+                    if (idx >= 0) {
+                        int targetEnd = idx + orig.length();
+                        ic.setSelection(targetEnd, targetEnd);
+                        ic.deleteSurroundingText(orig.length(), 0);
+                        ic.commitText(corr, 1);
+                        ic.endBatchEdit();
+                        logw(TAG, "Applied substring replacement [" + idx + ", " + targetEnd + "] via deleteSurroundingText: " + corr);
                         return true;
                     }
                 }
@@ -1521,16 +1425,14 @@ public final class GboardProofreadService {
                 logw(TAG, "ExtractedText replacement attempt failed, falling back to relative context", t);
             }
 
-            // 2. Relative context fallback (using getTextBeforeCursor / getTextAfterCursor)
-            CharSequence currentSel = ic.getSelectedText(0);
-            if (currentSel != null && currentSel.length() > 0) {
-                String selStr = currentSel.toString();
-                if (selStr.equals(orig) || selStr.trim().equals(orig.trim())) {
-                    ic.commitText(corr, 1);
-                    ic.endBatchEdit();
-                    logw(TAG, "Applied correction via active selection: " + corr);
-                    return true;
-                }
+            // 2. Relative context fallback (when beforeLength and afterLength match originalText)
+            if (result.beforeLength >= 0 && result.afterLength >= 0
+                    && (result.beforeLength + result.afterLength == orig.length())) {
+                ic.deleteSurroundingText(result.beforeLength, result.afterLength);
+                ic.commitText(corr, 1);
+                ic.endBatchEdit();
+                logw(TAG, "Applied relative context replacement via deleteSurroundingText(" + result.beforeLength + ", " + result.afterLength + "): " + corr);
+                return true;
             }
 
             CharSequence beforeCs = ic.getTextBeforeCursor(1500, 0);
