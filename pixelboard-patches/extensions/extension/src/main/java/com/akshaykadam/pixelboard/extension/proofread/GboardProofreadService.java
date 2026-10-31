@@ -166,18 +166,78 @@ public final class GboardProofreadService {
     }
 
     public static volatile boolean sBypassJarvisIntercept = false;
+    private static volatile String sLastCleanCorrectedText = null;
 
     /**
-     * Intercepts native Gboard Jarvis (Writing Tools) button clicks to provide
-     * top-quality Russian grammar, syntax heuristics, and spell-checking.
+     * Intercepts native Gboard Jarvis (Writing Tools) button clicks.
+     * When Yandex Speller is active (the default), directly launches our unified
+     * Git Diff proofread & rewrite card so the user gets instant, full-featured
+     * proofreading without Google service failures or broken text!
      */
     public static boolean onJarvisClicked(Object caller) {
         if (sBypassJarvisIntercept) {
             return false;
         }
-        // Smoothly pass through to native Gboard Writing Tools (JarvisKeyboard),
-        // which is now fully intercepted by Yandex Speller API + Russian grammar heuristics
-        // and displays the true Git Diff card styling directly in the native interface!
+        try {
+            View targetView = null;
+            if (caller instanceof View) {
+                targetView = (View) caller;
+            }
+            if (targetView == null) {
+                targetView = GboardProofreadButton.getAttachedParent();
+            }
+            if (targetView == null && caller != null) {
+                try {
+                    Object obr = null;
+                    try {
+                        obr = caller.getClass().getMethod("ah").invoke(caller);
+                    } catch (Throwable ignored) {}
+                    if (obr == null) {
+                        try {
+                            obr = caller.getClass().getMethod("aa").invoke(caller);
+                        } catch (Throwable ignored) {}
+                    }
+                    if (obr != null) {
+                        Object view = obr.getClass().getMethod("l").invoke(obr);
+                        if (view instanceof View) targetView = (View) view;
+                        if (targetView == null) {
+                            view = obr.getClass().getMethod("k").invoke(obr);
+                            if (view instanceof View) targetView = (View) view;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (targetView == null) {
+                InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
+                if (ims != null && ims.getWindow() != null) {
+                    View decor = ims.getWindow().getWindow() != null
+                            ? ims.getWindow().getWindow().getDecorView()
+                            : null;
+                    if (decor != null) targetView = decor;
+                }
+            }
+
+            if (targetView != null) {
+                Context context = targetView.getContext();
+                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
+                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
+
+                // If user explicitly configured an on-device/Google backend, let native Jarvis open
+                if (com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_AICORE.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_PRIVATE_INFERENCE_ASTREA.equals(backend)
+                        || com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_GBOARD_SERVER.equals(backend)) {
+                    return false;
+                }
+
+                // Default & Yandex backend: Intercept and display our unified Yandex Git Diff card!
+                final View finalView = targetView;
+                getMainHandler().post(() -> checkAndShowDiff(finalView));
+                return true;
+            }
+        } catch (Throwable t) {
+            logw(TAG, "Failed in onJarvisClicked", t);
+        }
         return false;
     }
 
@@ -205,7 +265,7 @@ public final class GboardProofreadService {
 
     /**
      * Extracts text from an oxh (Gboard Document/Selection descriptor) instance.
-     * Accurately distinguishes between manual selections and active sentences around the cursor.
+     * Captures the complete text rather than arbitrarily slicing to a single sentence.
      */
     private static String extractTextFromOxh(Object oxh) {
         if (oxh == null) return null;
@@ -219,16 +279,12 @@ public final class GboardProofreadService {
                     return sel.toString();
                 }
             }
-            Method nMethod = oxh.getClass().getMethod("n");
-            Method mMethod = oxh.getClass().getMethod("m");
-            Object beforeObj = nMethod.invoke(oxh);
-            Object afterObj = mMethod.invoke(oxh);
-            String before = beforeObj != null ? beforeObj.toString() : "";
-            String after = afterObj != null ? afterObj.toString() : "";
-            TextScope scope = findActiveSentenceScope(before, after);
-            String full = scope.getFullText();
-            if (full != null && !full.trim().isEmpty()) {
-                return full;
+            // If not selected, capture the full document text (oxh.b)
+            Field bField = oxh.getClass().getDeclaredField("b");
+            bField.setAccessible(true);
+            Object bObj = bField.get(oxh);
+            if (bObj != null && !bObj.toString().trim().isEmpty()) {
+                return bObj.toString();
             }
         } catch (Throwable t) {
             logw(TAG, "Error extracting text from oxh", t);
@@ -283,21 +339,28 @@ public final class GboardProofreadService {
             InputMethodService ims = GboardSpacebarSwipeRuntime.getCurrentInputMethodService();
             if (ims != null && ims.getCurrentInputConnection() != null) {
                 InputConnection ic = ims.getCurrentInputConnection();
-                CharSequence before = ic.getTextBeforeCursor(1000, 0);
-                CharSequence after = ic.getTextAfterCursor(1000, 0);
-                TextScope scope = findActiveSentenceScope(
-                        before == null ? "" : before.toString(),
-                        after == null ? "" : after.toString());
-                text = scope.getFullText();
+                try {
+                    ExtractedTextRequest req = new ExtractedTextRequest();
+                    req.hintMaxChars = 10000;
+                    req.hintMaxLines = 500;
+                    ExtractedText et = ic.getExtractedText(req, 0);
+                    if (et != null && et.text != null && et.text.length() > 0) {
+                        text = et.text.toString();
+                    }
+                } catch (Throwable ignored) {}
+                if (text == null || text.trim().isEmpty()) {
+                    CharSequence before = ic.getTextBeforeCursor(4000, 0);
+                    CharSequence after = ic.getTextAfterCursor(2000, 0);
+                    text = (before != null ? before.toString() : "") + (after != null ? after.toString() : "");
+                }
             }
         }
         return text;
     }
 
     /**
-     * Configures the exact target replacement range in JarvisExtension (hip.x).
-     * If user did not manually highlight text, this expands oxh so Gboard's native
-     * commit engine (gyd.A -> owa.h) replaces the exact target sentence!
+     * Configures the target replacement range in JarvisExtension (hip.x).
+     * Preserves intact document coordinates to prevent cursor/span desync.
      */
     private static void setupTargetRangeInHip(Object hipInstance, String textToTarget) {
         if (hipInstance == null) return;
@@ -310,28 +373,7 @@ public final class GboardProofreadService {
                 curX = vMethod.invoke(hipInstance, true);
             }
             if (curX != null) {
-                Method oMethod = curX.getClass().getMethod("o");
-                boolean isSelected = Boolean.TRUE.equals(oMethod.invoke(curX));
-                if (!isSelected) {
-                    Method nMethod = curX.getClass().getMethod("n");
-                    Method mMethod = curX.getClass().getMethod("m");
-                    Object beforeObj = nMethod.invoke(curX);
-                    Object afterObj = mMethod.invoke(curX);
-                    String before = beforeObj != null ? beforeObj.toString() : "";
-                    String after = afterObj != null ? afterObj.toString() : "";
-                    TextScope scope = findActiveSentenceScope(before, after);
-                    int bLen = scope.beforeScope.length();
-                    int aLen = scope.afterScope.length();
-                    if (bLen > 0 || aLen > 0) {
-                        Method jMethod = curX.getClass().getMethod("j", int.class, int.class);
-                        Object expandedOxh = jMethod.invoke(curX, bLen, aLen);
-                        xField.set(hipInstance, expandedOxh);
-                    } else {
-                        xField.set(hipInstance, curX);
-                    }
-                } else {
-                    xField.set(hipInstance, curX);
-                }
+                xField.set(hipInstance, curX);
             }
         } catch (Throwable t) {
             logw(TAG, "Failed to setup target range in hip.x", t);
@@ -426,6 +468,11 @@ public final class GboardProofreadService {
         if (seq == null) {
             return null;
         }
+        if (sLastCleanCorrectedText != null && !sLastCleanCorrectedText.isEmpty()) {
+            CharSequence clean = sLastCleanCorrectedText;
+            sLastCleanCorrectedText = null;
+            return clean;
+        }
         if (!(seq instanceof android.text.Spanned)) {
             if (sLastCorrectedText != null && !sLastCorrectedText.isEmpty()) {
                 String str = seq.toString();
@@ -512,6 +559,7 @@ public final class GboardProofreadService {
                     ProofreadResult result = checkTextInternal(text, false, 0, 0);
                     String corrected = result.hasChanges ? result.correctedText : text;
                     sLastCorrectedText = corrected;
+                    sLastCleanCorrectedText = corrected;
 
                     Object suggestion = createOmqSuggestion(cl, zMethod, corrected, 0, null);
 
@@ -655,6 +703,58 @@ public final class GboardProofreadService {
             logw(TAG, "Error in onGetGenAiRewriteResponse", t);
             return null;
         }
+    }
+
+    /**
+     * Generates a specific styled variant of Russian text (Formal, Casual, Shorten, Emojify)
+     * while preserving leading and trailing whitespace.
+     */
+    public static String getRussianRewriteVariant(String text, String style) {
+        if (text == null || text.trim().isEmpty()) return text;
+        int startSpaces = 0;
+        while (startSpaces < text.length() && Character.isWhitespace(text.charAt(startSpaces))) startSpaces++;
+        int endSpaces = 0;
+        while (endSpaces < text.length() && Character.isWhitespace(text.charAt(text.length() - 1 - endSpaces))) endSpaces++;
+        String prefix = text.substring(0, startSpaces);
+        String suffix = text.substring(text.length() - endSpaces);
+        String clean = text.trim();
+
+        String styled = clean;
+        if ("FORMALIZE".equals(style)) {
+            styled = clean.replaceAll("(?iu)\\b(привет|хай|салют)\\b", "Здравствуйте");
+            styled = styled.replaceAll("(?iu)\\b(спс|пасиб|пасиба)\\b", "спасибо");
+            styled = styled.replaceAll("(?iu)\\b(норм|нормас)\\b", "хорошо");
+            styled = styled.replaceAll("(?iu)\\b(ок|окэй|окей)\\b", "хорошо");
+            styled = styled.replaceAll("(?iu)\\b(ч[её])\\b", "что");
+            if (Character.isLowerCase(styled.charAt(0))) {
+                styled = Character.toUpperCase(styled.charAt(0)) + styled.substring(1);
+            }
+            if (!styled.endsWith(".") && !styled.endsWith("!") && !styled.endsWith("?")) {
+                styled += ".";
+            }
+        } else if ("CASUALIZE".equals(style)) {
+            styled = clean.replaceAll("(?iu)\\b(здравствуйте|добрый день|добрый вечер)\\b", "Привет");
+            if (styled.endsWith(".")) {
+                styled = styled.substring(0, styled.length() - 1);
+            }
+            if (!styled.endsWith("!") && !styled.endsWith("?")) {
+                styled += "!";
+            }
+        } else if ("SHORTEN".equals(style)) {
+            styled = clean.replaceAll("(?iu)\\b(в общем|так сказать|короче|собственно говоря|как бы|в принципе|на самом деле|типа)\\b,?\\s*", "").trim();
+            if (styled.isEmpty()) styled = clean;
+            styled = styled.replaceAll("[ \\t]{2,}", " ");
+            styled = styled.replaceAll("[ \\t]+([,.:;!?])", "$1");
+            if (Character.isLowerCase(styled.charAt(0))) {
+                styled = Character.toUpperCase(styled.charAt(0)) + styled.substring(1);
+            }
+            if (!styled.endsWith(".") && !styled.endsWith("!") && !styled.endsWith("?")) {
+                styled += ".";
+            }
+        } else if ("EMOJIFY".equals(style)) {
+            styled = clean + " 😊👍";
+        }
+        return prefix + styled + suffix;
     }
 
     /**
@@ -876,14 +976,31 @@ public final class GboardProofreadService {
             afterLen = 0;
         } else {
             wasSelected = false;
-            CharSequence before = ic.getTextBeforeCursor(1500, 0);
-            CharSequence after = ic.getTextAfterCursor(600, 0);
-            String beforeStr = before != null ? before.toString() : "";
-            String afterStr = after != null ? after.toString() : "";
-            TextScope scope = findActiveSentenceScope(beforeStr, afterStr);
-            textToCheck = scope.getFullText();
-            beforeLen = scope.beforeScope.length();
-            afterLen = scope.afterScope.length();
+            // First attempt full document capture via ExtractedText
+            String fullFieldText = null;
+            try {
+                ExtractedTextRequest req = new ExtractedTextRequest();
+                req.hintMaxChars = 10000;
+                req.hintMaxLines = 500;
+                ExtractedText et = ic.getExtractedText(req, 0);
+                if (et != null && et.text != null && et.text.length() > 0) {
+                    fullFieldText = et.text.toString();
+                }
+            } catch (Throwable ignored) {}
+
+            if (fullFieldText != null && !fullFieldText.trim().isEmpty() && fullFieldText.length() <= 8000) {
+                textToCheck = fullFieldText;
+                beforeLen = -1; // Marker: full document mode
+                afterLen = -1;
+            } else {
+                CharSequence before = ic.getTextBeforeCursor(4000, 0);
+                CharSequence after = ic.getTextAfterCursor(2000, 0);
+                String beforeStr = before != null ? before.toString() : "";
+                String afterStr = after != null ? after.toString() : "";
+                textToCheck = beforeStr + afterStr;
+                beforeLen = beforeStr.length();
+                afterLen = afterStr.length();
+            }
         }
 
         if (textToCheck.trim().isEmpty()) {
@@ -1176,12 +1293,13 @@ public final class GboardProofreadService {
 
         // 6. Typographic spacing and punctuation cleanup
         res = res.replaceAll("[ \\t]{2,}", " ");
-        res = res.replaceAll("\\s+([,.:;!?])", "$1");
-        res = res.replaceAll(",\\s*,", ",");
-        res = res.replaceAll(",\\s*([.!?])", "$1");
-        res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z])", "$1 $2");
-        res = res.replaceAll(",\\s*$", "");
-        res = res.replaceAll(",\\s*\\n", "\\n");
+        res = res.replaceAll("[ \\t]+([,.:;!?])", "$1");
+        res = res.replaceAll(",[ \\t]*,", ",");
+        res = res.replaceAll(",[ \\t]*([.!?])", "$1");
+        res = res.replaceAll("([,;])([а-яА-ЯёЁa-zA-Z0-9])", "$1 $2");
+        res = res.replaceAll(",[ \\t]*$", "");
+        res = res.replaceAll(",[ \\t]*\\n", "\\n");
+        res = res.replaceAll("[ \\t]{2,}", " ");
 
         // 7. Capitalize first letter of each sentence
         StringBuilder capitalized = new StringBuilder();
@@ -1338,7 +1456,11 @@ public final class GboardProofreadService {
                     int targetStart = -1;
                     int targetEnd = -1;
 
-                    if (selStart < selEnd) {
+                    // Case A: Full document replacement (when beforeLength == -1)
+                    if (result.beforeLength == -1 && (fullDoc.equals(orig) || fullDoc.trim().equals(orig.trim()))) {
+                        targetStart = 0;
+                        targetEnd = fullDoc.length();
+                    } else if (selStart < selEnd) {
                         String selText = fullDoc.substring(Math.max(0, selStart), Math.min(fullDoc.length(), selEnd));
                         if (selText.equals(orig) || selText.trim().equals(orig.trim())) {
                             targetStart = selStart;
@@ -1347,6 +1469,22 @@ public final class GboardProofreadService {
                     }
 
                     if (targetStart == -1) {
+                        // Locate using substring in fullDoc
+                        int idx = fullDoc.indexOf(orig);
+                        if (idx >= 0) {
+                            targetStart = idx;
+                            targetEnd = idx + orig.length();
+                        } else {
+                            String origTrim = orig.trim();
+                            idx = fullDoc.indexOf(origTrim);
+                            if (idx >= 0) {
+                                targetStart = idx;
+                                targetEnd = idx + origTrim.length();
+                            }
+                        }
+                    }
+
+                    if (targetStart == -1 && result.beforeLength >= 0) {
                         // Locate using beforeLength and afterLength around cursor
                         int expStart = selStart - result.beforeLength;
                         int expEnd = selStart + result.afterLength;
@@ -1356,16 +1494,6 @@ public final class GboardProofreadService {
                                 targetStart = expStart;
                                 targetEnd = expEnd;
                             }
-                        }
-                    }
-
-                    if (targetStart == -1) {
-                        // Search for orig near cursor (within 60 chars)
-                        int searchMin = Math.max(0, selStart - orig.length() - 60);
-                        int idx = fullDoc.lastIndexOf(orig, Math.min(selStart, fullDoc.length()));
-                        if (idx >= searchMin) {
-                            targetStart = idx;
-                            targetEnd = idx + orig.length();
                         }
                     }
 

@@ -34,6 +34,7 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -41,6 +42,7 @@ import android.widget.TextView;
 import com.akshaykadam.pixelboard.extension.spacebar.GboardSpacebarIndicatorOverlay;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -175,8 +177,12 @@ public final class GboardProofreadOverlay {
                 headerRow.setGravity(Gravity.CENTER_VERTICAL);
                 headerRow.setPadding(dp(context, 16), dp(context, 12), dp(context, 12), dp(context, 8));
 
+                String backend = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.readBackendType(
+                        com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.preferences(context));
+                boolean isYandex = com.akshaykadam.pixelboard.extension.writingtools.GboardAiWritingToolsSettings.BACKEND_YANDEX.equals(backend);
+
                 TextView title = new TextView(context);
-                title.setText("✨  Проверка текста (Git-дифф)");
+                title.setText(isYandex ? "✨  Яндекс Спеллер (Git-дифф)" : "✨  Проверка текста (Git-дифф)");
                 title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
                 title.setTypeface(Typeface.DEFAULT_BOLD);
                 title.setTextColor(textColor);
@@ -198,7 +204,68 @@ public final class GboardProofreadOverlay {
 
                 card.addView(headerRow);
 
-                // 2. Diff Text Body (ScrollView with SpannableStringBuilder)
+                // 2. Chip bar row inside HorizontalScrollView (Proofread & Style Rewrite Chips)
+                HorizontalScrollView chipScroll = new HorizontalScrollView(context);
+                chipScroll.setHorizontalScrollBarEnabled(false);
+                chipScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                LinearLayout.LayoutParams chipScrollParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                chipScrollParams.leftMargin = dp(context, 16);
+                chipScrollParams.rightMargin = dp(context, 16);
+                chipScrollParams.bottomMargin = dp(context, 8);
+
+                LinearLayout chipBar = new LinearLayout(context);
+                chipBar.setOrientation(LinearLayout.HORIZONTAL);
+                chipBar.setGravity(Gravity.CENTER_VERTICAL);
+
+                final String[] selectedStyle = new String[] { "SPELL" };
+                final String[] currentCorrection = new String[] { result.correctedText };
+                final List<GboardProofreadService.DiffToken>[] currentTokens = new List[] { result.diffTokens };
+
+                String[] chipKeys = new String[] { "SPELL", "FORMALIZE", "CASUALIZE", "SHORTEN", "EMOJIFY" };
+                String[] chipLabels = new String[] { "🪄 Исправить", "🪄 Формально", "🪄 Дружелюбно", "🪄 Кратко", "🪄 Эмодзи" };
+                final List<TextView> chipViews = new ArrayList<>();
+
+                TextView diffView = new TextView(context);
+                diffView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+                diffView.setLineSpacing(dp(context, 3), 1.25f);
+                diffView.setTextColor(textColor);
+
+                for (int i = 0; i < chipKeys.length; i++) {
+                    final String key = chipKeys[i];
+                    final TextView chipView = createChip(context, chipLabels[i], "SPELL".equals(key), isDark);
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    if (i > 0) cp.leftMargin = dp(context, 8);
+                    chipView.setLayoutParams(cp);
+
+                    chipView.setOnClickListener(v -> {
+                        selectedStyle[0] = key;
+                        for (int j = 0; j < chipViews.size(); j++) {
+                            updateChipStyle(chipViews.get(j), chipKeys[j].equals(key), isDark, context);
+                        }
+
+                        if ("SPELL".equals(key)) {
+                            currentCorrection[0] = result.correctedText;
+                            currentTokens[0] = result.diffTokens;
+                        } else {
+                            String styled = GboardProofreadService.getRussianRewriteVariant(result.originalText, key);
+                            currentCorrection[0] = styled;
+                            currentTokens[0] = GboardProofreadService.computeDiffTokens(result.originalText, styled);
+                        }
+
+                        SpannableStringBuilder updatedSsb = formatGitDiff(currentTokens[0], redBg, redFg, greenBg, greenFg);
+                        diffView.setText(updatedSsb);
+                    });
+
+                    chipViews.add(chipView);
+                    chipBar.addView(chipView);
+                }
+
+                chipScroll.addView(chipBar);
+                card.addView(chipScroll, chipScrollParams);
+
+                // 3. Diff Text Body (ScrollView with SpannableStringBuilder)
                 ScrollView scrollView = new ScrollView(context);
                 LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -207,50 +274,17 @@ public final class GboardProofreadOverlay {
                 scrollParams.bottomMargin = dp(context, 10);
                 scrollParams.weight = 1.0f;
 
-                TextView diffView = new TextView(context);
-                diffView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-                diffView.setLineSpacing(dp(context, 3), 1.25f);
-                diffView.setTextColor(textColor);
-
                 SpannableStringBuilder ssb = formatGitDiff(result.diffTokens, redBg, redFg, greenBg, greenFg);
                 diffView.setText(ssb);
 
                 scrollView.addView(diffView);
                 card.addView(scrollView, scrollParams);
 
-                // 3. Action Buttons Row (✨ AI Google, Отмена and Применить)
+                // 4. Action Buttons Row (Отмена and Применить)
                 LinearLayout actionsRow = new LinearLayout(context);
                 actionsRow.setOrientation(LinearLayout.HORIZONTAL);
                 actionsRow.setGravity(Gravity.CENTER_VERTICAL);
                 actionsRow.setPadding(dp(context, 16), 0, dp(context, 16), dp(context, 12));
-
-                // Google AI Writing Tools Button (Left aligned)
-                TextView googleAiBtn = new TextView(context);
-                googleAiBtn.setFocusable(false);
-                googleAiBtn.setFocusableInTouchMode(false);
-                googleAiBtn.setText("✨ AI Google");
-                googleAiBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-                googleAiBtn.setTypeface(Typeface.DEFAULT_BOLD);
-                googleAiBtn.setTextColor(secondaryTextColor);
-                googleAiBtn.setGravity(Gravity.CENTER);
-                googleAiBtn.setPadding(dp(context, 12), dp(context, 8), dp(context, 12), dp(context, 8));
-                GradientDrawable googleAiBg = new GradientDrawable();
-                googleAiBg.setShape(GradientDrawable.RECTANGLE);
-                googleAiBg.setCornerRadius(dp(context, 16));
-                googleAiBg.setColor(isDark ? Color.parseColor("#20FFFFFF") : Color.parseColor("#15000000"));
-                googleAiBtn.setBackground(googleAiBg);
-                googleAiBtn.setOnClickListener(v -> {
-                    dismiss(card);
-                    GboardProofreadService.sBypassJarvisIntercept = true;
-                    try {
-                        GboardProofreadButton.triggerWritingTools(keyboardView);
-                    } finally {
-                        keyboardView.postDelayed(() -> {
-                            GboardProofreadService.sBypassJarvisIntercept = false;
-                        }, 1200);
-                    }
-                });
-                actionsRow.addView(googleAiBtn);
 
                 // Spacer between left action and right dialog buttons
                 View spacer = new View(context);
@@ -293,11 +327,21 @@ public final class GboardProofreadOverlay {
                 applyBtn.setLayoutParams(applyParams);
 
                 applyBtn.setOnClickListener(v -> {
-                    // 1. Apply to input field
-                    GboardProofreadService.applyCorrection(ims, result);
-                    // 2. Play haptic feedback
+                    // 1. Construct proofread result with active selected style
+                    GboardProofreadService.ProofreadResult toApply = new GboardProofreadService.ProofreadResult(
+                            result.originalText,
+                            currentCorrection[0],
+                            currentTokens[0],
+                            result.wasSelected,
+                            result.beforeLength,
+                            result.afterLength,
+                            true,
+                            null);
+                    // 2. Apply to input field
+                    GboardProofreadService.applyCorrection(ims, toApply);
+                    // 3. Play haptic feedback
                     performHapticConfirm(keyboardView);
-                    // 3. Dismiss card
+                    // 4. Dismiss card
                     dismiss(card);
                 });
 
@@ -345,6 +389,37 @@ public final class GboardProofreadOverlay {
             }
         }
         return ssb;
+    }
+
+    private static TextView createChip(Context context, String label, boolean isSelected, boolean isDark) {
+        TextView chip = new TextView(context);
+        chip.setFocusable(false);
+        chip.setFocusableInTouchMode(false);
+        chip.setText(label);
+        chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        chip.setTypeface(Typeface.DEFAULT_BOLD);
+        chip.setGravity(Gravity.CENTER);
+        int padH = dp(context, 12);
+        int padV = dp(context, 6);
+        chip.setPadding(padH, padV, padH, padV);
+        updateChipStyle(chip, isSelected, isDark, context);
+        return chip;
+    }
+
+    private static void updateChipStyle(TextView chip, boolean isSelected, boolean isDark, Context context) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setCornerRadius(dp(context, 14));
+        if (isSelected) {
+            bg.setColor(isDark ? Color.parseColor("#40FFFFFF") : Color.parseColor("#E0E0E0"));
+            bg.setStroke(dp(context, 1), isDark ? Color.WHITE : Color.parseColor("#1D1B20"));
+            chip.setTextColor(isDark ? Color.WHITE : Color.parseColor("#1D1B20"));
+        } else {
+            bg.setColor(isDark ? Color.parseColor("#18FFFFFF") : Color.parseColor("#10000000"));
+            bg.setStroke(0, Color.TRANSPARENT);
+            chip.setTextColor(isDark ? Color.parseColor("#B0B3B8") : Color.parseColor("#5F6368"));
+        }
+        chip.setBackground(bg);
     }
 
     private static LinearLayout createBaseCard(Context context, ViewGroup container) {
